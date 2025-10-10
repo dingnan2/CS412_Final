@@ -1,0 +1,84 @@
+# Configuration file for CS 412 Research Project
+
+# Data paths
+data:
+  raw_path: "data/raw"
+  processed_path: "data/processed"
+  samples_path: "data/samples"
+  
+# Yelp dataset files
+yelp_files:
+  business: "yelp_academic_dataset_business.json"
+  review: "yelp_academic_dataset_review.json"
+  user: "yelp_academic_dataset_user.json"
+  checkin: "yelp_academic_dataset_checkin.json"
+  tip: "yelp_academic_dataset_tip.json"
+
+# Model parameters
+models:
+  # Baseline models
+  logistic_regression:
+    max_iter: 1000
+    random_state: 42
+    
+  decision_tree:
+    max_depth: 10
+    min_samples_split: 5
+    random_state: 42
+    
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    random_state: 42
+    
+  # Advanced models
+  xgboost:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    random_state: 42
+    
+  neural_network:
+    hidden_layer_sizes: [100, 50]
+    max_iter: 1000
+    random_state: 42
+
+# Feature engineering
+features:
+  # Text processing
+  sentiment:
+    model: "textblob"  # or "bert", "vader"
+    
+  # Temporal features
+  temporal:
+    windows: [30, 90, 180, 365]  # days
+    
+  # User weighting
+  user_weighting:
+    min_reviews: 5
+    usefulness_threshold: 0.5
+
+# Evaluation
+evaluation:
+  test_size: 0.2
+  cv_folds: 5
+  random_state: 42
+  
+  # Metrics
+  classification_metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "roc_auc"
+    
+  regression_metrics:
+    - "mse"
+    - "mae"
+    - "r2"
+
+# Output paths
+output:
+  models_path: "results/models"
+  plots_path: "results/plots"
+  reports_path: "results/reports"
