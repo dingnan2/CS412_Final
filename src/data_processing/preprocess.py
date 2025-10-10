@@ -10,8 +10,9 @@ from pathlib import Path
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from data_processing.data_processor import YelpDataProcessor
-from utils.config import config
+# Import with absolute imports
+from src.data_processing.data_processor import YelpDataProcessor
+from src.utils.config import config
 
 
 def main():

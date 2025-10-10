@@ -10,12 +10,13 @@ from pathlib import Path
 # Add src to path
 sys.path.append(str(Path(__file__).parent / "src"))
 
-from data_processing.data_processor import YelpDataProcessor
-from feature_engineering.feature_extractor import FeatureEngineer
-from models.baseline_models import BaselineModels
-from models.ensemble_framework import UserWeightedEnsemble
-from evaluation.evaluator import ModelEvaluator
-from utils.config import config
+# Import with absolute imports
+from src.data_processing.data_processor import YelpDataProcessor
+from src.feature_engineering.feature_extractor import FeatureEngineer
+from src.models.baseline_models import BaselineModels
+from src.models.ensemble_framework import UserWeightedEnsemble
+from src.evaluation.evaluator import ModelEvaluator
+from src.utils.config import config
 
 
 def setup_logging():

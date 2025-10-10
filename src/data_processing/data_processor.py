@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 
-from ..utils.config import config
-from ..utils.utils import load_json_data, save_json_data, convert_to_dataframe
+# Import with absolute imports
+from src.utils.config import config
+from src.utils.utils import load_json_data, save_json_data, convert_to_dataframe
 
 
 class YelpDataProcessor:
