@@ -84,16 +84,12 @@ python src/evaluation/evaluate_models.py
 
 - **Stage 1**: Data Preparation and EDA (Sept 16 - Sept 30)
 - **Stage 2**: Baseline Implementation (Oct 1 - Oct 15)  
-- **Stage 3**: Advanced Framework Development (Oct 16 - Oct 29)
-- **Stage 4**: Model Evaluation and Analysis (Oct 30 - Nov 15)
-- **Stage 5**: Final Report and Documentation (Nov 16 - Dec 2)
+- **Stage 3**: Advanced Framework Development 
+- **Stage 4**: Model Evaluation and Analysis 
+- **Stage 5**: Final Report and Documentation
 
 ## Challenges & Mitigation
 
 1. **Data Imbalance**: Use stratified sampling and SMOTE
 2. **High-Dimensional Features**: Apply dimensionality reduction
 3. **Computational Complexity**: Optimize with efficient implementations
-
-## License
-
-This project is for academic research purposes only.
