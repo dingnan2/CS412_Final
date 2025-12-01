@@ -1,6 +1,6 @@
 # CS 412 Research Project - EDA Report
 
-Generated: 2025-10-29 23:42:45
+Generated: 2025-12-01 00:03:29
 
 ## Overview
 This report summarizes data cleaning results and exploratory analysis for the Yelp-based business success prediction project. It includes dataset summaries and commentary for each visualization.
@@ -27,8 +27,8 @@ Unique cities: 1416
 - Success varies across states; location features may add signal.
 
 ## 2. Review Data Summary
-Total reviews: 6,990,280
-Unique businesses reviewed: 150,346
+Total reviews: 6,990,282
+Unique businesses reviewed: 150,347
 Average review rating: 3.75
 Date range: 2005-02-16 03:23:22 to 2022-01-19 19:48:45
 

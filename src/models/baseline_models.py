@@ -23,7 +23,10 @@ import pickle
 from typing import Dict, Tuple, List
 
 # Scikit-learn imports
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.model_selection import (
+    train_test_split, cross_val_score, StratifiedKFold,
+    GridSearchCV, RandomizedSearchCV
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -71,7 +74,11 @@ class BaselineModelPipeline:
     def __init__(self, 
                  data_path: str,
                  output_path: str = "src/models",
-                 random_state: int = 42):
+                 random_state: int = 42,
+                 enable_hyperparameter_tuning: bool = False,
+                 tuning_method: str = "randomized",
+                 cv_folds: int = 5,
+                 n_iter: int = 50):
         """
         Initialize the baseline model pipeline.
         
@@ -79,11 +86,19 @@ class BaselineModelPipeline:
             data_path: Path to business_features_final.csv
             output_path: Directory to save outputs
             random_state: Random seed for reproducibility
+            enable_hyperparameter_tuning: If True, perform hyperparameter tuning
+            tuning_method: "grid" for GridSearchCV or "randomized" for RandomizedSearchCV
+            cv_folds: Number of cross-validation folds for tuning
+            n_iter: Number of iterations for RandomizedSearchCV (ignored for GridSearchCV)
         """
         self.data_path = Path(data_path)
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
         self.random_state = random_state
+        self.enable_hyperparameter_tuning = enable_hyperparameter_tuning
+        self.tuning_method = tuning_method.lower()
+        self.cv_folds = cv_folds
+        self.n_iter = n_iter
         
         # Create subdirectories
         self.plots_path = self.output_path / "plots"
@@ -112,6 +127,7 @@ class BaselineModelPipeline:
         # Models
         self.models = {}
         self.results = {}
+        self.best_params = {}  # Store best hyperparameters found
         
         # Feature selection tracking
         self.feature_selection_summary = {}
@@ -384,54 +400,206 @@ class BaselineModelPipeline:
             class_weight_dict=class_weight_dict
         )
     
+    def _get_parameter_grids(self, use_class_weight: bool, class_weight_dict: Dict = None):
+        """
+        Define parameter grids for hyperparameter tuning.
+        
+        Args:
+            use_class_weight: Whether to use class weights
+            class_weight_dict: Class weight dictionary if applicable
+            
+        Returns:
+            Dictionary of parameter grids for each model type
+        """
+        # Logistic Regression parameter grid
+        lr_param_grid = {
+            'C': [0.001, 0.01, 0.1, 1.0, 10.0, 100.0],
+            'solver': ['lbfgs', 'liblinear'],
+            'max_iter': [500, 1000, 2000]
+        }
+        if use_class_weight:
+            lr_param_grid['class_weight'] = [class_weight_dict, 'balanced']
+        
+        # Decision Tree parameter grid
+        dt_param_grid = {
+            'max_depth': [5, 10, 15, 20, None],
+            'min_samples_split': [2, 5, 10, 20, 30],
+            'min_samples_leaf': [1, 5, 10, 15, 20],
+            'criterion': ['gini', 'entropy']
+        }
+        if use_class_weight:
+            dt_param_grid['class_weight'] = [class_weight_dict, 'balanced']
+        
+        # Random Forest parameter grid (smaller for efficiency)
+        rf_param_grid = {
+            'n_estimators': [50, 100, 200],
+            'max_depth': [10, 15, 20, None],
+            'min_samples_split': [2, 5, 10, 20],
+            'min_samples_leaf': [1, 5, 10],
+            'max_features': ['sqrt', 'log2', None]
+        }
+        if use_class_weight:
+            rf_param_grid['class_weight'] = [class_weight_dict, 'balanced']
+        
+        return {
+            'LogisticRegression': lr_param_grid,
+            'DecisionTree': dt_param_grid,
+            'RandomForest': rf_param_grid
+        }
+    
+    def _tune_hyperparameters(self, model_type: str, X_train, y_train,
+                              use_class_weight: bool, class_weight_dict: Dict = None):
+        """
+        Perform hyperparameter tuning for a specific model type.
+        
+        Args:
+            model_type: 'LogisticRegression', 'DecisionTree', or 'RandomForest'
+            X_train: Training features
+            y_train: Training labels
+            use_class_weight: Whether to use class weights
+            class_weight_dict: Class weight dictionary if applicable
+            
+        Returns:
+            Best model with tuned hyperparameters
+        """
+        logger.info(f"\n{'='*70}")
+        logger.info(f"HYPERPARAMETER TUNING: {model_type}")
+        logger.info(f"{'='*70}")
+        logger.info(f"Method: {self.tuning_method.upper()}")
+        logger.info(f"CV Folds: {self.cv_folds}")
+        if self.tuning_method == "randomized":
+            logger.info(f"Number of iterations: {self.n_iter}")
+        
+        # Get parameter grid
+        param_grids = self._get_parameter_grids(use_class_weight, class_weight_dict)
+        param_grid = param_grids[model_type]
+        
+        # Create base model
+        if model_type == 'LogisticRegression':
+            base_model = LogisticRegression(random_state=self.random_state)
+        elif model_type == 'DecisionTree':
+            base_model = DecisionTreeClassifier(random_state=self.random_state)
+        elif model_type == 'RandomForest':
+            base_model = RandomForestClassifier(random_state=self.random_state, n_jobs=-1)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
+        
+        # Create cross-validation object
+        cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=self.random_state)
+        
+        # Perform hyperparameter tuning
+        if self.tuning_method == "grid":
+            search = GridSearchCV(
+                base_model,
+                param_grid,
+                cv=cv,
+                scoring='roc_auc',
+                n_jobs=-1,
+                verbose=1
+            )
+        else:  # randomized
+            search = RandomizedSearchCV(
+                base_model,
+                param_grid,
+                n_iter=self.n_iter,
+                cv=cv,
+                scoring='roc_auc',
+                n_jobs=-1,
+                random_state=self.random_state,
+                verbose=1
+            )
+        
+        logger.info(f"Starting hyperparameter search...")
+        search.fit(X_train, y_train)
+        
+        # Log results
+        logger.info(f"\nBest parameters found:")
+        for param, value in search.best_params_.items():
+            logger.info(f"  {param}: {value}")
+        logger.info(f"Best CV score (ROC-AUC): {search.best_score_:.4f}")
+        
+        return search.best_estimator_, search.best_params_
+    
     def _train_model_set(self, X_train, y_train, approach: str, 
                         use_class_weight: bool, class_weight_dict: Dict = None):
         """Train one set of models (either SMOTE or class weight approach)"""
         
         # Model 1: Logistic Regression
         logger.info(f"\n[{approach}] Training Logistic Regression...")
-        lr = LogisticRegression(
-            random_state=self.random_state,
-            max_iter=1000,
-            class_weight=class_weight_dict if use_class_weight else None,
-            solver='lbfgs',
-            C=1.0
-        )
-        lr.fit(X_train, y_train)
+        if self.enable_hyperparameter_tuning:
+            lr, best_params = self._tune_hyperparameters(
+                'LogisticRegression', X_train, y_train,
+                use_class_weight, class_weight_dict
+            )
+            model_name = f"LogisticRegression_{approach}"
+            self.best_params[model_name] = best_params
+        else:
+            lr = LogisticRegression(
+                random_state=self.random_state,
+                max_iter=1000,
+                class_weight=class_weight_dict if use_class_weight else None,
+                solver='lbfgs',
+                C=1.0
+            )
+            lr.fit(X_train, y_train)
+            model_name = f"LogisticRegression_{approach}"
+            self.best_params[model_name] = {'C': 1.0, 'solver': 'lbfgs', 'max_iter': 1000}
         
-        model_name = f"LogisticRegression_{approach}"
         self.models[model_name] = lr
         logger.info(f"[{approach}] Logistic Regression trained successfully")
         
         # Model 2: Decision Tree
         logger.info(f"\n[{approach}] Training Decision Tree...")
-        dt = DecisionTreeClassifier(
-            random_state=self.random_state,
-            max_depth=10,
-            min_samples_split=20,
-            min_samples_leaf=10,
-            class_weight=class_weight_dict if use_class_weight else None
-        )
-        dt.fit(X_train, y_train)
+        if self.enable_hyperparameter_tuning:
+            dt, best_params = self._tune_hyperparameters(
+                'DecisionTree', X_train, y_train,
+                use_class_weight, class_weight_dict
+            )
+            model_name = f"DecisionTree_{approach}"
+            self.best_params[model_name] = best_params
+        else:
+            dt = DecisionTreeClassifier(
+                random_state=self.random_state,
+                max_depth=10,
+                min_samples_split=20,
+                min_samples_leaf=10,
+                class_weight=class_weight_dict if use_class_weight else None
+            )
+            dt.fit(X_train, y_train)
+            model_name = f"DecisionTree_{approach}"
+            self.best_params[model_name] = {
+                'max_depth': 10, 'min_samples_split': 20, 'min_samples_leaf': 10
+            }
         
-        model_name = f"DecisionTree_{approach}"
         self.models[model_name] = dt
         logger.info(f"[{approach}] Decision Tree trained successfully")
         
         # Model 3: Random Forest
         logger.info(f"\n[{approach}] Training Random Forest...")
-        rf = RandomForestClassifier(
-            n_estimators=100,
-            random_state=self.random_state,
-            max_depth=15,
-            min_samples_split=20,
-            min_samples_leaf=10,
-            class_weight=class_weight_dict if use_class_weight else None,
-            n_jobs=-1
-        )
-        rf.fit(X_train, y_train)
+        if self.enable_hyperparameter_tuning:
+            rf, best_params = self._tune_hyperparameters(
+                'RandomForest', X_train, y_train,
+                use_class_weight, class_weight_dict
+            )
+            model_name = f"RandomForest_{approach}"
+            self.best_params[model_name] = best_params
+        else:
+            rf = RandomForestClassifier(
+                n_estimators=100,
+                random_state=self.random_state,
+                max_depth=15,
+                min_samples_split=20,
+                min_samples_leaf=10,
+                class_weight=class_weight_dict if use_class_weight else None,
+                n_jobs=-1
+            )
+            rf.fit(X_train, y_train)
+            model_name = f"RandomForest_{approach}"
+            self.best_params[model_name] = {
+                'n_estimators': 100, 'max_depth': 15,
+                'min_samples_split': 20, 'min_samples_leaf': 10
+            }
         
-        model_name = f"RandomForest_{approach}"
         self.models[model_name] = rf
         logger.info(f"[{approach}] Random Forest trained successfully")
         
@@ -871,18 +1039,35 @@ class BaselineModelPipeline:
         report_lines.append("")
         report_lines.append("**Baseline Models:**")
         report_lines.append("")
-        report_lines.append("1. **Logistic Regression**")
-        report_lines.append("   - Linear model for binary classification")
-        report_lines.append("   - Hyperparameters: C=1.0, solver='lbfgs', max_iter=1000")
-        report_lines.append("")
-        report_lines.append("2. **Decision Tree**")
-        report_lines.append("   - Non-linear model with interpretable rules")
-        report_lines.append("   - Hyperparameters: max_depth=10, min_samples_split=20, min_samples_leaf=10")
-        report_lines.append("")
-        report_lines.append("3. **Random Forest**")
-        report_lines.append("   - Ensemble of decision trees")
-        report_lines.append("   - Hyperparameters: n_estimators=100, max_depth=15, min_samples_split=20")
-        report_lines.append("")
+        if self.enable_hyperparameter_tuning:
+            report_lines.append(f"✓ **Hyperparameter tuning ENABLED**")
+            report_lines.append(f"  - Method: {self.tuning_method.upper()}")
+            report_lines.append(f"  - CV Folds: {self.cv_folds}")
+            if self.tuning_method == "randomized":
+                report_lines.append(f"  - Iterations: {self.n_iter}")
+            report_lines.append("")
+            report_lines.append("**Best Hyperparameters Found:**")
+            report_lines.append("")
+            for model_name in sorted(self.best_params.keys()):
+                report_lines.append(f"**{model_name}:**")
+                for param, value in self.best_params[model_name].items():
+                    report_lines.append(f"  - {param}: {value}")
+                report_lines.append("")
+        else:
+            report_lines.append("⚠ **Hyperparameter tuning DISABLED** (using default parameters)")
+            report_lines.append("")
+            report_lines.append("1. **Logistic Regression**")
+            report_lines.append("   - Linear model for binary classification")
+            report_lines.append("   - Hyperparameters: C=1.0, solver='lbfgs', max_iter=1000")
+            report_lines.append("")
+            report_lines.append("2. **Decision Tree**")
+            report_lines.append("   - Non-linear model with interpretable rules")
+            report_lines.append("   - Hyperparameters: max_depth=10, min_samples_split=20, min_samples_leaf=10")
+            report_lines.append("")
+            report_lines.append("3. **Random Forest**")
+            report_lines.append("   - Ensemble of decision trees")
+            report_lines.append("   - Hyperparameters: n_estimators=100, max_depth=15, min_samples_split=20")
+            report_lines.append("")
         report_lines.append("**Class Imbalance Handling:**")
         report_lines.append("")
         report_lines.append("- **Approach 1: SMOTE** - Synthetic Minority Over-sampling")
@@ -1058,10 +1243,12 @@ class BaselineModelPipeline:
         report_lines.append("")
         report_lines.append("### 📈 Model Improvement")
         report_lines.append("")
-        report_lines.append("1. **Hyperparameter Tuning:**")
-        report_lines.append("   - Use GridSearchCV or RandomizedSearchCV")
-        report_lines.append("   - Focus on regularization parameters (C, max_depth, n_estimators)")
-        report_lines.append("")
+        if not self.enable_hyperparameter_tuning:
+            report_lines.append("1. **Hyperparameter Tuning:**")
+            report_lines.append("   - Enable hyperparameter tuning by setting `enable_hyperparameter_tuning=True`")
+            report_lines.append("   - Use GridSearchCV or RandomizedSearchCV")
+            report_lines.append("   - Focus on regularization parameters (C, max_depth, n_estimators)")
+            report_lines.append("")
         report_lines.append("2. **Advanced Algorithms:**")
         report_lines.append("   - XGBoost or LightGBM for gradient boosting")
         report_lines.append("   - Neural Networks for complex patterns")
@@ -1151,9 +1338,17 @@ class BaselineModelPipeline:
         logger.info(f"Saved: {report_file}")
         
         # Save results summary as JSON
-        results_summary = {}
+        results_summary = {
+            'hyperparameter_tuning_enabled': self.enable_hyperparameter_tuning,
+            'tuning_method': self.tuning_method if self.enable_hyperparameter_tuning else None,
+            'cv_folds': self.cv_folds if self.enable_hyperparameter_tuning else None,
+            'n_iter': self.n_iter if (self.enable_hyperparameter_tuning and self.tuning_method == "randomized") else None,
+            'best_hyperparameters': self.best_params,
+            'model_results': {}
+        }
+        
         for model_name, results in self.results.items():
-            results_summary[model_name] = {
+            results_summary['model_results'][model_name] = {
                 'roc_auc': float(results['roc_auc']),
                 'pr_auc': float(results['pr_auc']),
                 'precision': float(results['precision']),
@@ -1221,15 +1416,34 @@ def main():
     data_path = "data/features/business_features_final.csv"
     output_path = "src/models"
     
+    # Hyperparameter tuning options
+    # Set enable_hyperparameter_tuning=True to enable tuning
+    # "grid" for exhaustive search or "randomized" for random search
+    enable_tuning = True  # Set to True to enable hyperparameter tuning
+    tuning_method = "randomized"  # "grid" or "randomized"
+
+    cv_folds = 5  # Number of CV folds
+    n_iter = 50  # Number of iterations for RandomizedSearchCV 
+    
     print(f"Data path: {data_path}")
     print(f"Output path: {output_path}")
+    print(f"Hyperparameter tuning: {'ENABLED' if enable_tuning else 'DISABLED'}")
+    if enable_tuning:
+        print(f"  - Method: {tuning_method.upper()}")
+        print(f"  - CV Folds: {cv_folds}")
+        if tuning_method == "randomized":
+            print(f"  - Iterations: {n_iter}")
     print("")
     
     # Initialize and run pipeline
     pipeline = BaselineModelPipeline(
         data_path=data_path,
         output_path=output_path,
-        random_state=42
+        random_state=42,
+        enable_hyperparameter_tuning=enable_tuning,
+        tuning_method=tuning_method,
+        cv_folds=cv_folds,
+        n_iter=n_iter
     )
     
     pipeline.run_pipeline()

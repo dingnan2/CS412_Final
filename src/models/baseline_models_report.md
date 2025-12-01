@@ -1,6 +1,6 @@
 # Baseline Models Report
 
-**Generated:** 2025-10-30 15:51:06
+**Generated:** 2025-12-01 04:37:59
 
 ---
 
@@ -11,7 +11,7 @@ We trained **6 models** (3 algorithms × 2 imbalance handling approaches) on 120
 and evaluated them on 30,070 test samples.
 
 **Best Model:** RandomForest_ClassWeight
-**Best ROC-AUC:** 0.9531
+**Best ROC-AUC:** 0.9533
 
 ---
 
@@ -43,16 +43,16 @@ and evaluated them on 30,070 test samples.
 
 | Rank | Feature | Importance |
 |------|---------|------------|
-| 1 | days_since_last_review | 0.5043 |
-| 2 | review_frequency | 0.1200 |
-| 3 | lifecycle_stage | 0.0460 |
-| 4 | review_momentum | 0.0376 |
-| 5 | reviews_recent_3m_count | 0.0337 |
-| 6 | days_since_first_review | 0.0297 |
-| 7 | total_reviews | 0.0281 |
-| 8 | review_count | 0.0224 |
-| 9 | avg_reviewer_credibility | 0.0222 |
-| 10 | rating_trend_3m | 0.0163 |
+| 1 | days_since_last_review | 0.5079 |
+| 2 | review_frequency | 0.1196 |
+| 3 | lifecycle_stage | 0.0458 |
+| 4 | review_momentum | 0.0377 |
+| 5 | reviews_recent_3m_count | 0.0320 |
+| 6 | days_since_first_review | 0.0292 |
+| 7 | total_reviews | 0.0270 |
+| 8 | review_count | 0.0227 |
+| 9 | avg_reviewer_credibility | 0.0220 |
+| 10 | rating_trend_3m | 0.0156 |
 
 ![Feature Importance](./plots/feature_importance_selection.png)
 
@@ -62,17 +62,51 @@ and evaluated them on 30,070 test samples.
 
 **Baseline Models:**
 
-1. **Logistic Regression**
-   - Linear model for binary classification
-   - Hyperparameters: C=1.0, solver='lbfgs', max_iter=1000
+✓ **Hyperparameter tuning ENABLED**
+  - Method: RANDOMIZED
+  - CV Folds: 5
+  - Iterations: 50
 
-2. **Decision Tree**
-   - Non-linear model with interpretable rules
-   - Hyperparameters: max_depth=10, min_samples_split=20, min_samples_leaf=10
+**Best Hyperparameters Found:**
 
-3. **Random Forest**
-   - Ensemble of decision trees
-   - Hyperparameters: n_estimators=100, max_depth=15, min_samples_split=20
+**DecisionTree_ClassWeight:**
+  - min_samples_split: 10
+  - min_samples_leaf: 1
+  - max_depth: 5
+  - criterion: entropy
+  - class_weight: balanced
+
+**DecisionTree_SMOTE:**
+  - min_samples_split: 20
+  - min_samples_leaf: 20
+  - max_depth: 10
+  - criterion: entropy
+
+**LogisticRegression_ClassWeight:**
+  - solver: liblinear
+  - max_iter: 1000
+  - class_weight: balanced
+  - C: 100.0
+
+**LogisticRegression_SMOTE:**
+  - solver: liblinear
+  - max_iter: 500
+  - C: 10.0
+
+**RandomForest_ClassWeight:**
+  - n_estimators: 200
+  - min_samples_split: 10
+  - min_samples_leaf: 10
+  - max_features: log2
+  - max_depth: 20
+  - class_weight: balanced
+
+**RandomForest_SMOTE:**
+  - n_estimators: 100
+  - min_samples_split: 2
+  - min_samples_leaf: 1
+  - max_features: sqrt
+  - max_depth: None
 
 **Class Imbalance Handling:**
 
@@ -87,12 +121,12 @@ and evaluated them on 30,070 test samples.
 
 | Model | ROC-AUC | PR-AUC | Precision | Recall | F1-Score |
 |-------|---------|--------|-----------|--------|----------|
-| DecisionTree ClassWeight | 0.9351 | 0.9681 | 0.9627 | 0.8843 | 0.9218 |
-| DecisionTree SMOTE | 0.9388 | 0.9747 | 0.9534 | 0.9031 | 0.9276 |
-| LogisticRegression ClassWeight | 0.9446 | 0.9824 | 0.9599 | 0.8950 | 0.9263 |
-| LogisticRegression SMOTE | 0.9440 | 0.9821 | 0.9585 | 0.8985 | 0.9275 |
-| RandomForest ClassWeight | 0.9531 | 0.9849 | 0.9595 | 0.9186 | 0.9386 |
-| RandomForest SMOTE | 0.9519 | 0.9848 | 0.9588 | 0.9171 | 0.9375 |
+| DecisionTree ClassWeight | 0.9450 | 0.9830 | 0.9650 | 0.8805 | 0.9208 |
+| DecisionTree SMOTE | 0.9388 | 0.9783 | 0.9530 | 0.9218 | 0.9372 |
+| LogisticRegression ClassWeight | 0.9446 | 0.9824 | 0.9599 | 0.8948 | 0.9262 |
+| LogisticRegression SMOTE | 0.9440 | 0.9821 | 0.9586 | 0.8985 | 0.9276 |
+| RandomForest ClassWeight | 0.9533 | 0.9846 | 0.9571 | 0.9274 | 0.9420 |
+| RandomForest SMOTE | 0.9511 | 0.9842 | 0.9523 | 0.9357 | 0.9439 |
 
 ![Model Comparison](./plots/model_comparison.png)
 
@@ -130,28 +164,28 @@ Top features identified by Random Forest models:
 
 **Performance Metrics:**
 
-- **ROC-AUC:** 0.9531
-- **PR-AUC:** 0.9849
-- **Precision:** 0.9595 (% of predicted closures that are actually closed)
-- **Recall:** 0.9186 (% of actual closures that are detected)
-- **F1-Score:** 0.9386 (harmonic mean of precision and recall)
+- **ROC-AUC:** 0.9533
+- **PR-AUC:** 0.9846
+- **Precision:** 0.9571 (% of predicted closures that are actually closed)
+- **Recall:** 0.9274 (% of actual closures that are detected)
+- **F1-Score:** 0.9420 (harmonic mean of precision and recall)
 
 **Confusion Matrix Breakdown:**
 
-- **True Negatives (TN):** 5,202 - Correctly predicted as closed
-- **False Positives (FP):** 928 - Incorrectly predicted as closed
-- **False Negatives (FN):** 1,948 - Incorrectly predicted as open
-- **True Positives (TP):** 21,992 - Correctly predicted as open
+- **True Negatives (TN):** 5,134 - Correctly predicted as closed
+- **False Positives (FP):** 996 - Incorrectly predicted as closed
+- **False Negatives (FN):** 1,737 - Incorrectly predicted as open
+- **True Positives (TP):** 22,203 - Correctly predicted as open
 
 ### 5.2 SMOTE vs Class Weight Comparison
 
 **SMOTE Approach:**
-- Average ROC-AUC: 0.9449
+- Average ROC-AUC: 0.9446
 - Pros: Balanced training data, better minority class learning
 - Cons: Synthetic samples may not represent true distribution
 
 **Class Weight Approach:**
-- Average ROC-AUC: 0.9443
+- Average ROC-AUC: 0.9476
 - Pros: Uses only real data, faster training
 - Cons: May still bias towards majority class
 
@@ -163,12 +197,12 @@ Top features identified by Random Forest models:
 - Best for: Understanding linear relationships
 
 **DecisionTree:**
-- Average ROC-AUC: 0.9370
+- Average ROC-AUC: 0.9419
 - Rule-based, highly interpretable
 - Best for: Understanding feature interactions
 
 **RandomForest:**
-- Average ROC-AUC: 0.9525
+- Average ROC-AUC: 0.9522
 - Ensemble method, robust, handles non-linearity
 - Best for: Overall predictive performance
 
@@ -178,7 +212,7 @@ Top features identified by Random Forest models:
 
 ### ✅ Strengths
 
-1. **Strong Discriminative Power:** Best ROC-AUC of 0.9531 indicates good separation
+1. **Strong Discriminative Power:** Best ROC-AUC of 0.9533 indicates good separation
 2. **Feature Engineering Success:** Selected features show high predictive value
 3. **Consistent Performance:** Models perform reasonably across different approaches
 
@@ -191,21 +225,17 @@ Top features identified by Random Forest models:
 ### 💡 Insights
 
 **Top 5 Predictive Features:**
-- `days_since_last_review`: 0.4229
-- `review_frequency`: 0.0936
-- `lifecycle_stage`: 0.0747
-- `reviews_recent_3m_count`: 0.0643
-- `review_momentum`: 0.0289
+- `days_since_last_review`: 0.3293
+- `review_frequency`: 0.0869
+- `lifecycle_stage`: 0.0575
+- `reviews_recent_3m_count`: 0.0446
+- `days_since_first_review`: 0.0312
 
 ---
 
 ## 7. Recommendations & Next Steps
 
 ### 📈 Model Improvement
-
-1. **Hyperparameter Tuning:**
-   - Use GridSearchCV or RandomizedSearchCV
-   - Focus on regularization parameters (C, max_depth, n_estimators)
 
 2. **Advanced Algorithms:**
    - XGBoost or LightGBM for gradient boosting
@@ -273,8 +303,8 @@ Top features identified by Random Forest models:
 16. total_useful_votes
 17. stars
 18. price_range
-19. rating_recent_vs_early
-20. avg_useful_per_review
+19. avg_useful_per_review
+20. rating_recent_vs_early
 21. sentiment_recent_3m
 22. avg_sentiment
 23. sentiment_volatility
@@ -301,7 +331,7 @@ Top features identified by Random Forest models:
 
 ## 9. Conclusion
 
-This baseline model analysis establishes a strong foundation with a best ROC-AUC of **0.9531**.
+This baseline model analysis establishes a strong foundation with a best ROC-AUC of **0.9533**.
 The **RandomForest_ClassWeight** model demonstrates the most promising performance and serves as
 the benchmark for future model iterations.
 
