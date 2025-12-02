@@ -1,0 +1,82 @@
+Project Instructions for Research Project
+The project is only for students taking 4th credit and worth 25% of the total grades.
+Team Work
+Students in teams of 2 to 3 may choose to participate in a Kaggle challenge or propose a research topic to work on a practical problem related to data mining. The final code and report should include the contributions of each team member.
+Topics
+The topics of the project are diversified. You have two options for research project: (1) You are allowed to participate in a Kaggle challenge related to data mining. A list of example Kaggle challenge topics is provided below. The problem is basically classification and regression. The datasets cover a wide range of data mining tasks/applications. There are text data (Yelp reviews), image data (cloud image), graph data (molecular structure), and geographical data (BigQuery-Geotab). The sizes of the datasets are selected so that they are not too small but also processable on your personal computer (typically from several hundreds of megabytes to several gigabytes.). You can choose the data type you are interested in for the project. (2) You are also allowed to propose your own project topics for this course. A list of suggested project topics can be found in the SIGKDD website: https://kdd2026.kdd.org/research-track-call-for-papers/. We also recommend you to check Chapter 12 of the textbook (4th edition) as a starting point on recent research trends in data mining.
+A list of example Kaggle challenges:
+•	BigQuery-Geotab Intersection Congestion https://www.kaggle.com/c/bigquery-geotab-intersection-congestion/overview
+•	Understanding Clouds from Satellite Images https://www.kaggle.com/c/understanding_cloud_organization/overview
+•	Yelp Dataset Challenge https://www.kaggle.com/yelp-dataset/yelp-dataset
+•	Predicting Molecular Properties https://www.kaggle.com/c/champs-scalar-coupling/overview
+•	LANL Earthquake Prediction https://www.kaggle.com/c/LANL-Earthquake-Prediction/data
+Overall Requirements
+1.	Propose a novel framework to solve your selected research topic;
+2.	Compare it with at least 2 baseline methods;
+3.	Write a comprehensive report to explain your framework and show your results;
+4.	Submit your code that can reproduce your experiments.
+Schedule
+Each project stage is due at 11:59 PM (CT) on the specified due date.
+One member from each group is expected to upload the required materials of each stage to Canvas.
+Stage 1: Proposal Submission
+Due Date: 11:59 PM, Sep. 16th, 2025
+Each group must do the following in its research project proposal.
+•	Create a PDF file of the proposal and upload it to Canvas. There will be an entry in canvas for uploading the project proposal. Only one member from each team should be uploading the proposal.
+•	The proposal should be 1 page (ACM Standard Proceedings format, see below for link to template) and must contain the following contents.
+–	Title.
+–	List of authors (team members), along with your NetID and affiliation (department, program).
+–	Proposal. This is the most important part. State as clearly as possible.
+∗ Introduction: Briefly introduce your task in the selected challenge. What is the input and what is the output?
+∗ Motivation: A few sentences on why the project is of interest from a data mining and/or real-world application perspective. Please cite relevant related work.
+∗ Data: Getting to know your data. How large is it? What is the type of your data (categorical,  numerical, etc)? Are there any network, text or image data included? 
+∗ Plan of work: How do you plan to solve it? Explain your idea at a high-level. (You may revise it or even propose a completely new one later. We just need to know that you have already spent some time thinking about it.)
+∗ Challenges: Argue on the feasibility to finish the task on the selected challenge. If your framework is too complicated, you might struggle to implement it. Feel free to use existing tools and packages (e.g., repositories on GitHub).
+∗ Milestones: A timeline that specifies your plan to finish the course project.
+∗ Baselines: List at least 2 baseline approaches you would like to compare with. Add citations if they are from research papers.
+Please use the ACM Standard Proceedings template (“sigconf” proceedings in LaTeX) for your proposal, midpoint report and final report. You can find the template (for both Word and LaTeX) at https://www.acm.org/publications/proceedings-template.
+Note: We will give you feedback on Canvas. Please read them and incorporate them into your plan.
+Stage 2: Midpoint Report Submission
+Due Date: 11:59 PM, Oct. 30th, 2025
+•	Create a PDF file of the report and upload it to Canvas. There will be an entry in canvas for uploading the midpoint report. Only one member from each team should upload the report.
+•	The midpoint report should be at least 2 pages (ACM Standard Proceedings format) and must contain the following contents.
+–	Title.
+–	List of authors (team members), along with your NetID and affiliation (department, program).
+–	Midpoint report.
+∗ Introduction: A brief introduction to the task. This can be derived from your proposal report;
+∗ Methodology: What are you doing/planning to do from a data mining perspective? 
+∗ Preliminary Results: What you have so far, initial results of your own method or baselines, and analysis of those initial results. Having figures and tables with good captions in the main report helps make it more readable.
+∗ Plan of work: Summarize your progress and what are the next steps before the final report?
+∗ Milestones: A timeline that specifies your plan to finish the course project.
+Stage 3: Final Report Submission
+Due Date: 11:59 PM, Dec. 2nd, 2025
+•	Create a PDF file of the report. Compress your code repository into one zip file. Upload your report and zipped code repository to Canvas. There will be an entry in canvas for uploading these things. Only one member from each team should upload them.
+•	The code repository must contain the following contents.
+–	A README file on how to run your code. List the required packages. List link(s) to the data to reproduce your result. If you reuse code from other places, explicitly specify it.
+–	Well-commented code
+–	Do NOT include data or large packages, which will make it too large to be uploaded.
+•	The final report should be at most 6 pages (ACM Standard Proceedings template) plus 1 page for supplemental material (optional, ACM Standard Proceedings template) and must contain the following contents.
+–	Title.
+–	List of authors (team members), along with your NetID and affiliation (department, program).
+–	Final report.
+∗ Introduction: A brief introduction to the task. This can be derived from your proposal and mid-point report;
+∗ Methodology: A detailed explanation of your framework, with explanatory figures and formulas;
+∗ Experimental setup: the dataset, baselines (at least 2), evaluation metrics, parameter settings;
+∗ Results: quantitative performances of your approach and the baselines;
+∗ Ablation study (i.e., what if you remove/change some parts of your proposed model); parameter study (i.e., how does the performance change if the parameters vary);
+∗ Implications: an explanation of the results; case studies if possible;
+∗ Future work: disadvantages of the current framework; possible directions to fix them.
+– Contributions of each group member.
+Project Grading
+The grade of the research project would depend on the following parameters.
+(15%) In time and complete submission for Stage 1: Proposal Submission.
+All questions in the guideline are answered clearly and comprehensively.
+(35%) In time and complete submission for Stage 2: Midpoint Report Submission.
+There is sufficient progress in terms of the organization of concepts (ideas).
+(50%) In time and complete submission for Stage 3: Final Report Submission.
+Clear organization of concepts (ideas, formulation, experimental setting, results analysis).
+Uniqueness and novelty of the proposed framework.
+Text clarity, presentation, and use of illustrations.
+In-depth discussion and concrete recommendations for future directions.
+Covers the key reference papers.
+Plagiarism
+We will check for plagiarism. Please remember that students are bound by the University honor code on academic integrity in regard to all work related to this course. Any student found to be violating this code will be subject to disciplinary action. We have found instances of this in the past via automated detection software so don’t think we won’t be able to catch you.

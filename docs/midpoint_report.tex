@@ -1,0 +1,517 @@
+\documentclass[sigconf]{acmart}
+
+%%
+%% Remove ACM reference format and copyright
+%%
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+%%
+%% Conference information
+%% 
+\acmConference{Business Success Prediction using Yelp Dataset}{Midpoint Report}{Oct 2025}
+
+%%
+%% Packages
+%%
+\usepackage{enumitem}
+\usepackage{placeins}
+\usepackage{float}
+\usepackage{makecell}
+\usepackage{caption}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage[section]{placeins}
+%%
+%% Remove ACM format title and banner
+%%
+\makeatletter
+\def\@ACM@format@title@and@banner{}
+\makeatother
+
+%%
+%% Start of document
+%%
+\begin{document}
+
+%%
+%% Title
+%%
+\title{CS 412 Midpoint Report \\ Business Success Prediction using Yelp Dataset}
+
+%%
+%% Authors
+%%
+\author{Adeniran Coker}
+\affiliation{
+  \department{Department of Civil Engineering}
+  \program{Ph.D Civil Engineering}
+}
+\email{ac171}
+
+\author{Ju-Bin Choi}
+\affiliation{
+  \department{Siebel School of Computing and Data Science}
+  \program{Master of Computer Science}
+}
+\email{jubinc2}
+
+\author{Carmen Zheng}
+\affiliation{
+  \department{Siebel School of Computing and Data Science}
+  \program{Master of Computer Science}
+}
+\email{dingnan2}
+
+
+\maketitle
+
+%%
+%% Section 1: Introduction
+%%
+\section{Introduction}
+
+\subsection{Task Overview}
+This project addresses the challenge of predicting restaurant business success through a temporal-aware framework that jointly predicts business survival and rating trajectories. Recent U.S. Bureau of Labor Statistics data shows that while only 17\% of restaurants fail in their first year \cite{parsa2005}, approximately 49\% fail within five years, with over 72,000 restaurant closures in 2024 alone \cite{nra2024}. An accurate prediction system provides significant value for entrepreneurs planning strategies, investors identifying resilient businesses, and policymakers monitoring economic health.
+
+\textbf{Input:} Business metadata (categories, location, attributes), timestamped review histories (ratings, text, engagement metrics), and user engagement patterns (tenure, credibility indicators) from the Yelp Academic Dataset.
+
+\textbf{Output:} Binary survival classification (is\_open: 1=Open, 0=Closed) with confidence scores and predicted rating trajectories for 6, 12, and 24-month forecasting horizons.
+
+\textbf{Temporal Framework:} To ensure real-world applicability, we establish prediction cutoff windows where only information available at the prediction time is used. For instance, to predict business status 12 months in advance, we use only features computed from data preceding the cutoff date, preventing temporal leakage where future information influences predictions.
+
+\subsection{Dataset Description}
+The Yelp Academic Dataset comprises multiple interconnected data sources spanning over 17 years:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Business Data:} 150,346 businesses with metadata including ratings, review counts, categories (e.g., Restaurants, Shopping, Food), location (27 states, 1,416 cities), attributes (parking, price range), and operational status (is\_open flag)
+    \item \textbf{Review Data:} 6,990,280 reviews spanning January 2005 to January 2022, containing star ratings (1-5 scale), review text (average 200-300 characters), timestamps, and engagement metrics (useful, funny, cool votes)
+    \item \textbf{User Data:} 1,987,897 users with profile information, platform tenure (yelping\_since), review counts (mean: 23.39, median: 4), credibility indicators (useful votes, compliments), and social network features (friends, fans)
+\end{itemize}
+
+\noindent\textbf{Key Dataset Characteristics:}
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Class Imbalance:} 79.62\% open vs. 20.38\% closed businesses, requiring specialized handling techniques (SMOTE, class weighting)
+    \item \textbf{Temporal Dynamics:} Reviews exhibit steady growth from 2005-2022 with stable average ratings ($\sim$3.8-4.0 stars), enabling time-series feature engineering
+    \item \textbf{Geographic Variation:} Business success rates vary significantly across states and cities (Section 2.2), suggesting location features provide predictive signal
+    \item \textbf{User Heterogeneity:} Highly skewed user activity (small power-user group dominates contributions) motivates credibility-weighted aggregation approach
+\end{itemize}
+
+\subsection{Research Objectives}
+Our research objectives for this project are:
+
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item \textbf{Comprehensive Feature Engineering:} Develop a modular framework producing 52 features across 6 categories (static business, review aggregation, sentiment, user-weighted, temporal dynamics, location/category aggregates) that incorporates temporal patterns, sentiment analysis, and user credibility weighting
+    
+    \item \textbf{Robust Baseline Evaluation:} Implement and evaluate three baseline classification algorithms (Logistic Regression, Decision Tree, Random Forest) with two class imbalance handling techniques (SMOTE, class weights), yielding 6 model variants for comprehensive comparison
+    
+    \item \textbf{Novel User Credibility Framework:} Design a user-weighted aggregation approach that accounts for reviewer credibility based on platform tenure and engagement, hypothesizing that reviews from established, highly-engaged users provide stronger predictive signal
+    
+    \item \textbf{Systematic Validation:} Conduct ablation studies to validate the contribution of each feature category, implement proper temporal validation to prevent data leakage, and establish realistic performance benchmarks for real-world deployment
+    
+    \item \textbf{Interpretable Insights:} Achieve interpretable predictions through feature importance analysis and decision rule extraction that provide actionable insights for business stakeholders (e.g., identifying early warning signals of decline)
+\end{enumerate}
+
+\textbf{Novel Contributions:} While existing restaurant failure prediction studies rely primarily on static business attributes, our framework introduces (1) user credibility-weighted feature aggregation, (2) temporal dynamics capturing rating trajectories and review momentum, and (3) a modular architecture enabling systematic evaluation of different feature categories' contributions through ablation studies.
+
+%%
+%% Section 2: Methodology
+%%
+\section{Methodology}
+
+\subsection{Data Preprocessing Pipeline}
+
+Our preprocessing pipeline handles the large-scale Yelp dataset through memory-efficient chunked processing. The pipeline consists of three main cleaning operations:
+
+\subsubsection{Business Data Cleaning}
+We processed 150,346 business records by: (1) removing unnecessary columns (postal\_code, longitude, latitude, hours), (2) handling missing values through median imputation for numerical features (stars, review\_count) and appropriate defaults for categorical features, (3) removing duplicate businesses based on business\_id, and (4) handling outliers using the IQR method with clipping at 1.5×IQR bounds.
+
+\subsubsection{Review Data Cleaning}
+Due to the size of the review dataset (6.99M records), we implemented streaming processing with 500,000-record chunks. For each chunk, we: (1) combined funny and cool votes into total\_count to reduce dimensionality, (2) converted date strings to datetime objects, (3) handled missing values with zero-filling for engagement metrics and empty strings for text, and (4) removed duplicate reviews based on review\_id.
+
+\subsubsection{User Data Cleaning}
+Similarly, user data (1.99M records) was processed in 100,000-record chunks. We: (1) calculated user tenure in years from yelping\_since to reference date (2025-01-31), (2) combined funny and cool compliments into funny\_cool, (3) filled missing engagement metrics with zeros, and (4) removed duplicate users based on user\_id.
+
+The preprocessing phase successfully handled 8M+ records while maintaining data integrity and producing cleaned datasets with zero missing values.
+
+\subsection{Exploratory Data Analysis}
+
+Our EDA phase investigated data distributions, correlations, and temporal patterns to guide feature engineering decisions.
+
+\subsubsection{Business Analysis}
+Figure \ref{fig:business_analysis} shows the distribution of business ratings and review counts. Key findings include: (1) ratings exhibit a modest positive skew (mean: 3.60, median: 3.50) with concentration around 3.5-4.0 stars, indicating rating inflation or survivor bias where poorly-rated businesses close early, (2) review counts follow a heavily right-skewed distribution (median: 11, max: 7,568) with 75\% of businesses having fewer than 50 reviews, suggesting most establishments have limited review history for prediction, and (3) the 80/20 open-closed ratio confirms significant class imbalance requiring specialized handling.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plots/business_analysis.png}
+\caption{Business data distributions showing ratings, review counts, and operational status. Note: Results require temporal validation (see Section 3.3).}
+\label{fig:business_analysis}
+\end{figure}
+
+Geographic analysis revealed success rate variation across states (range: 0.65-0.85) and cities, suggesting location features may provide predictive signal. Category analysis identified restaurants (45\%), food establishments (18\%), and shopping (12\%) as the dominant business types, with restaurants showing lower average success rates (0.76) compared to other categories (0.82).
+
+\subsubsection{Review Patterns}
+Figure \ref{fig:review_trends} illustrates temporal review patterns from 2005 to 2022. Reviews show steady growth (2005: \textasciitilde5K/month $\rightarrow$ 2022: \textasciitilde80K/month) reflecting Yelp platform expansion rather than individual business growth, with average ratings remaining stable around 3.8-4.0 stars across all time periods. Useful vote distributions are heavy-tailed (median: 0, 90th percentile: 5, max: 875), indicating a small subset of reviews ($\approx$10\%) receive disproportionate engagement, motivating credibility-weighted aggregation. Text length analysis showed high variance (mean: 234 chars, std: 412 chars), with most reviews between 100-500 characters but some exceeding 5,000 characters, requiring robust text feature extraction.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plots/review_monthly_trends.png}
+\caption{Monthly review trends showing volume growth and rating stability over time. The x-axis spans 2005-2022 (204 months), with steady growth from ~5K to ~80K reviews/month reflecting platform expansion. Average ratings remain stable around 3.8-4.0 stars throughout the period. }
+\label{fig:review_trends}
+\end{figure}
+
+\subsubsection{User Engagement}
+User activity metrics revealed extreme skewness. While the average user writes 23.39 reviews, the distribution is dominated by a small group of power users with 100+ reviews. Average user tenure of 10.32 years and useful votes of 42.30 support our hypothesis that credibility weighting based on tenure and engagement would improve prediction quality.
+
+\subsubsection{Correlation Analysis}
+Figure \ref{fig:correlation} presents the correlation matrix for key numerical features. Strong positive correlation between review\_count and stars (r=0.45) suggests either selection bias (higher-rated businesses attract more reviews) or quality signaling (more reviews indicate established, successful businesses). This relationship justifies including both features. 
+
+User tenure shows moderate correlation with useful votes (r=0.38), validating our credibility scoring approach where long-tenured users accumulate more useful votes. Weak correlation between sentiment metrics and stars (r=0.28) indicates sentiment analysis captures distinct information beyond numerical ratings. These insights directly informed our feature engineering strategy: combining correlated features through credibility weighting rather than simple removal.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plots/correlation_analysis.png}
+\caption{Correlation analysis revealing key feature relationships for modeling.}
+\label{fig:correlation}
+\end{figure}
+
+\subsection{Feature Engineering Framework}
+
+We developed a comprehensive feature engineering framework producing 52 features across 6 distinct categories. This modular approach enables ablation studies to assess individual category contributions.
+
+\subsubsection{Category A: Static Business Features (8 features)}
+Basic business characteristics including stars, review\_count, target-encoded category and location features (category\_encoded, state\_encoded, city\_encoded), category diversity metrics (has\_multiple\_categories, category\_count), and price\_range extracted from attributes.
+
+\subsubsection{Category B: Review Aggregation Features (9 features)}
+Statistical aggregations of review data including total\_reviews, avg\_review-\_stars, std\_review\_stars, rating velocity metrics (rating\_velocity), engagement metrics (total\_useful\_votes, avg\_useful\_per\_review), temporal features (days\_since\_first\_review, days\_since\_last\_review), and activity measures (review\_frequency).
+
+\subsubsection{Category C: Sentiment Features (8 features)}
+Text-based sentiment analysis using VADER sentiment analyzer producing avg\_senti-ment, std\_sentiment, sentiment\_volatility, distribution metrics (pct-\_positive\_reviews, pct\_negative\_reviews, pct\_neutral\_reviews), temporal sentiment (sentiment\_trend\_3m), and text characteristics (avg\_text\_length, std\_text\_length).
+
+\subsubsection{Category D: User-Weighted Features (9 features)}
+Our novel contribution: user credibility scoring based on platform tenure and engagement. 
+
+We calculate \[reviewer\_credibility = (useful\_votes / max\_useful) \times 0.5  
+\]\[
++ (tenure\_years / max\_tenure) \times 0.5\]
+, then aggregate weighted\_avg\_rating, weighted\_sentiment, avg\_reviewer\_cred-ibility, std\_reviewer\_credibility, pct\_high\_credibility\_reviewers, we-ighted\_useful\_votes, avg\_reviewer\_tenure, avg\_reviewer\_experience, review\_diversity, and power\_user\_ratio.
+
+\subsubsection{Category E: Temporal Dynamics Features (8 features)}
+Time-based features comparing recent (3-month window) versus historical performance including rating\_recent\_vs\_all, rating\_recent\_vs\_early, sentiment\_recent\_vs\_all, reviews\_recent\_3m\_count, review\_frequency\_trend, engagement\_recent\_vs\_all, and lifecycle\_stage classification (0=New, 1=Growing, 2=Mature, 3=Declining).
+
+
+\subsubsection{Category F: Location/Category Aggregates (5 features)}
+Competitive landscape metrics including category\_avg\_success\_rate, state\_avg\_success\_rate, city\_avg\_success\_rate, category\_competiti-veness (same category/city competitors), and location\_density (total businesses in city).
+
+
+\subsubsection{Feature Category Summary}
+Table \ref{tab:feature_categories} summarizes the feature categories and their design rationale. The modular architecture enables systematic ablation studies in our final evaluation.
+
+\begin{table}[htbp]
+\centering
+\caption{Feature engineering framework summary}
+\label{tab:feature_categories}
+\small
+\begin{tabular}{@{}lrp{4.5cm}@{}}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Key Features} \\
+\midrule
+A: Static Business & 8 & Stars, review\_count, category/location encoding \\
+B: Review Aggregation & 9 & Rating statistics, temporal spans, engagement \\
+C: Sentiment & 8 & VADER scores, sentiment trends, text length \\
+D: User-Weighted & 9 & Credibility-weighted ratings and sentiment \\
+E: Temporal Dynamics & 8 & Recent vs. historical comparisons, lifecycle \\
+F: Location/Category & 5 & Success rates, competitiveness, density \\
+\midrule
+\textbf{Total (Initial)} & \textbf{52} & \\
+\textbf{After Selection} & \textbf{33} & Correlation + variance filtering \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Feature Selection}
+We applied multi-stage feature selection: (1) correlation-based removal (|r| > 0.95) reduced features from 52 to 45, (2) variance thresholding (variance < 0.01) further reduced to 33 features. Figure \ref{fig:feature_importance} shows the top selected features ranked by Random Forest importance scores.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plots/feature_importance_selection.png}
+\caption{Feature importance scores from selection process identifying top predictive features.}
+\label{fig:feature_importance}
+\end{figure}
+
+\subsection{Baseline Model Design}
+
+We implemented three baseline algorithms with two class imbalance handling approaches, yielding six model variants for comparison.
+
+\subsubsection{Model Algorithms}
+
+\textbf{Logistic Regression:} Linear probabilistic classifier serving as our statistical baseline. Hyperparameters: C=1.0, solver='lbfgs', max\_iter=1000. This model provides interpretable coefficients and establishes performance expectations from linear feature combinations.
+
+\textbf{Decision Tree:} Non-linear rule-based classifier enabling interpretable decision paths. Hyperparameters: max\_depth=10, min\_sam-ples\_split=20, min\_samples\_leaf=10. This model captures feature interactions and nonlinear relationships.
+
+\textbf{Random Forest:} Ensemble of 100 decision trees providing robust predictions. Hyperparameters: n\_estimators=100, max\_depth=15, min\_samples\_split=20, min\_samples\_leaf=10. This model balances performance and computational efficiency.
+
+\subsubsection{Class Imbalance Handling}
+
+Given the 80/20 class distribution, we implemented two approaches:
+
+\textbf{SMOTE (Synthetic Minority Over-sampling Technique):} Generates synthetic minority class samples by interpolating between existing minority samples and their k-nearest neighbors. This balances the training set to 50/50 distribution.
+
+\textbf{Class Weights:} Assigns inverse class frequency weights to loss function, making minority class errors more costly. Weights calculated as: $w_i = n_{samples} / (n_{classes} \times n_{samples\_i})$.
+
+\subsubsection{Evaluation Protocol}
+We employed 80/20 stratified train-test split (random\_state=42) to maintain class distribution. Features were standardized using StandardScaler fitted only on training data to prevent data leakage from test set statistics. Evaluation metrics include ROC-AUC (primary metric for imbalanced classification), PR-AUC (precision-recall curve area, sensitive to minority class), precision, recall, and F1-score.
+
+\textbf{Limitation:} The current random split does not respect temporal ordering, potentially allowing features computed from recent data to predict past outcomes. Our final evaluation (Section 4.1) will implement time-based splits (train: 2005-2020, test: 2021-2022) to validate temporal generalization.
+
+%%
+%% Section 3: Preliminary Results
+%%
+\section{Preliminary Results}
+
+\subsection{Feature Engineering Outcomes}
+
+Our feature engineering pipeline successfully generated 52 features across 6 categories, which were then refined to 33 high-quality features through systematic selection.
+
+Table \ref{tab:feature_summary} summarizes key statistics for selected features. The top predictive features identified were days\_since\_last\_review (importance: 0.5043), review\_frequency (0.1200), lifecycle\_stage (0.0460), review\_momentum (0.0376), and reviews\_recent\_3m\_count (0.0337).
+
+\textbf{Critical Observation:} The dominance of days\_since\_last\_review (importance: 0.5043) as the top predictor is suspicious. This feature accounts for over 50\% of the model's decision weight. This occurs because closed businesses naturally stop receiving reviews, making this feature a near-perfect proxy for the target variable rather than a genuine predictor. This pattern signals temporal leakage in our current feature engineering approach, as discussed in Section 3.3.
+
+\begin{table}[htbp]
+\centering
+\caption{Summary statistics for top selected features}
+\label{tab:feature_summary}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Feature} & \textbf{Mean} & \textbf{Median} & \textbf{Std} & \textbf{Min} & \textbf{Max} \\
+\midrule
+stars & 3.60 & 3.50 & 1.01 & 1.00 & 5.00 \\
+review\_count & 31.85 & 11.00 & 89.13 & 3.00 & 7568.00 \\
+total\_reviews & 31.85 & 11.00 & 89.13 & 3.00 & 7568.00 \\
+avg\_sentiment & 0.43 & 0.48 & 0.28 & -0.95 & 0.99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The modular feature categories were saved separately to enable ablation studies in the final report phase.
+
+\subsection{Baseline Model Performance}
+
+Table \ref{tab:model_results} presents performance metrics for all six baseline model variants. The best performing model was Random Forest with class weights, achieving 0.9531 ROC-AUC, 0.9849 PR-AUC, 0.9595 precision, 0.9186 recall, and 0.9386 F1-score.
+
+\textbf{Important Caveat:} These performance metrics likely overestimate real-world performance by 10-20\% due to temporal leakage from features incorporating post-closure information (detailed in Section 3.3). After implementing proper time-based validation (Section 4.1), we expect more realistic performance in the range of ROC-AUC: 0.75-0.85.
+
+\begin{table}[htbp]
+\centering
+\caption{Baseline model performance comparison}
+\label{tab:model_results}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Model} & \textbf{ROC-AUC} & \textbf{PR-AUC} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} \\
+\midrule
+DT ClassWeight & 0.9351 & 0.9681 & 0.9627 & 0.8843 & 0.9218 \\
+DT SMOTE & 0.9388 & 0.9747 & 0.9534 & 0.9031 & 0.9276 \\
+LR ClassWeight & 0.9446 & 0.9824 & 0.9599 & 0.8950 & 0.9263 \\
+LR SMOTE & 0.9440 & 0.9821 & 0.9585 & 0.8985 & 0.9275 \\
+\textbf{RF ClassWeight} & \textbf{0.9531} & \textbf{0.9849} & \textbf{0.9595} & \textbf{0.9186} & \textbf{0.9386} \\
+RF SMOTE & 0.9519 & 0.9848 & 0.9588 & 0.9171 & 0.9375 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+Figure \ref{fig:roc_curves} presents ROC curves for all six models, showing excellent separation between classes with the Random Forest models achieving the highest true positive rates across all false positive rate thresholds.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plots/roc_curves.png}
+\caption{ROC curves for all six models showing excellent class separation. Random Forest models achieve highest true positive rates across all false positive rate thresholds. Note: Performance is inflated due to temporal leakage (Section 3.3).}
+\label{fig:roc_curves}
+\end{figure}
+
+Figure \ref{fig:rf_importance} displays feature importance scores from the best Random Forest model. The dominance of temporal features (days\_since\_\\last\_review, review\_frequency, reviews\_recent\_3m\_count) among top predictors provides key insights for our critical analysis below.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{plots/random_forest_feature_importance.png}
+\caption{Feature importance from Random Forest ClassWeight model revealing top predictive features. Note: Results require temporal validation (see Section 3.3).}
+\label{fig:rf_importance}
+\end{figure}
+
+\subsection{Critical Analysis and Identified Issues}
+
+While our baseline models achieved strong performance (best ROC-AUC: 0.9531), we identified a critical methodological issue that likely inflates these results: \textbf{temporal data leakage}.
+
+\subsubsection{Temporal Leakage Problem}
+Our current feature engineering approach calculates temporal features using the entire dataset timeline without establishing a prediction cutoff window. This creates three critical leakage pathways:
+
+\paragraph{Leakage Pathway 1: Post-hoc Activity Metrics}
+\textbf{days\_since\_last \_review} (importance: 0.5043) essentially encodes closure status. Closed businesses stop receiving reviews, creating near-perfect separation. At actual prediction time (e.g., 12 months before closure), this information would not be available.
+
+\paragraph{Leakage Pathway 2: Consequence vs. Predictor Confusion}
+\textbf{review \_frequency} and \textbf{reviews\_recent\_3m\_count} capture review activity decline, which is often a \textit{consequence} of closure (declining service quality → fewer customers → fewer reviews) rather than an independent predictor.
+
+\paragraph{Leakage Pathway 3: Future Information in Comparisons}
+All \textbf{temporal dynamics features} (rating\_recent\_vs\_all, sentiment\_recent \_vs\_all) use the full timeline, potentially incorporating post-closure information in the "all" baseline, biasing recent vs. historical comparisons.
+
+This leakage explains why temporal features dominate importance rankings (3 of top 5 features) and why overall performance appears unrealistically high. In real-world deployment, we must predict business status 6-12 months in advance using only information available before the prediction cutoff.
+
+\subsubsection{Impact Assessment}
+We estimate temporal leakage impacts results as follows:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Performance overestimation}: Current ROC-AUC scores (0.93-0.95) likely overestimate real-world performance by 10-20 percentage points. Expected realistic range: 0.75-0.85 ROC-AUC after temporal correction.
+    
+    \item \textbf{Feature importance distortion}: Temporal features are over-represented in rankings. days\_since\_last\_review contributes $\approx$50\% of model predictive power but is not available prospectively. After removing leakage features, importance will redistribute to static business attributes and user credibility metrics.
+    
+    \item \textbf{Deployment failure risk}: Current models would fail in prospective prediction scenarios, performing near random chance (0.50 AUC) when predicting 12 months ahead, as key features become unavailable.
+\end{itemize}
+
+\subsubsection{Validation of Other Components}
+Despite the temporal leakage issue, several components remain valid:
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item Data preprocessing pipeline successfully handled large-scale data
+    \item EDA insights about class imbalance, user credibility variance, and feature correlations remain accurate
+    \item User credibility weighting framework is methodologically sound
+    \item Baseline model implementations and class imbalance handling approaches are correct
+    \item Feature engineering categories (except temporal dynamics) provide legitimate signal
+\end{itemize}
+
+%%
+%% Section 4: Plan of Work
+%%
+\section{Plan of Work}
+
+\subsection{Progress Summary}
+
+We have completed the following milestones:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Data Preprocessing} (Sept 16-30): Successfully cleaned 150K businesses, 6.99M reviews, and 1.99M users using memory-efficient chunked processing
+    \item \textbf{Exploratory Data Analysis} (Oct 1-15): Conducted comprehensive EDA revealing key patterns and informing feature engineering decisions
+    \item \textbf{Feature Engineering} (Oct 16-29): Developed 6-category framework producing 52→33 features including novel user credibility weighting
+    \item \textbf{Baseline Models}: Trained 6 model variants and identified strong performance with critical analysis of temporal leakage
+\end{itemize}
+
+\subsection{Contributions}
+\noindent
+Table \ref{tab:contributions} summarizes the distribution of work across team members for each project phase, with individual contribution percentages.
+
+\FloatBarrier
+\begin{table}[htbp]
+\centering
+\caption{Team member contributions by project phase}
+\label{tab:contributions}
+\small
+\begin{tabular}{@{}p{2.2cm}p{2.8cm}p{2cm}r@{}}
+\toprule
+\textbf{Phase} & \textbf{Task} & \textbf{Contributors} & \textbf{\%} \\
+\midrule
+\multirow{3}{2.2cm}{Data Preprocessing} 
+& \multirow{3}{2.8cm}{Data cleaning pipeline, chunked processing} 
+& Carmen & 33.3 \\
+& & Ju-Bin & 33.3 \\
+& & Adeniran & 33.3 \\
+\midrule
+\multirow{3}{2.2cm}{Exploratory Data Analysis} 
+& \multirow{3}{2.8cm}{Statistical analysis, visualization} 
+& Carmen & 33.3 \\
+& & Ju-Bin & 33.3 \\
+& & Adeniran & 33.3 \\
+\midrule
+\multirow{3}{2.2cm}{Feature Engineering} 
+& Initial implementation 
+& Carmen & 40.0 \\
+\cmidrule(lr){2-4}
+& \multirow{2}{2.8cm}{\textit{Temporal leakage fix*}} 
+& Ju-Bin & 30.0* \\
+& & Adeniran & 30.0* \\
+\midrule
+\multirow{3}{2.2cm}{Baseline Models} 
+& Current implementation 
+& Carmen & 40.0 \\
+\cmidrule(lr){2-4}
+& \multirow{2}{2.8cm}{\textit{Enhancement \& validation*}} 
+& Ju-Bin & 30.0* \\
+& & Adeniran & 30.0* \\
+\midrule
+\multirow{3}{2.2cm}{\textit{Model Evaluation*}} 
+& \multirow{3}{2.8cm}{Performance analysis, metrics} 
+& Carmen & 33.3* \\
+& & Ju-Bin & 33.3* \\
+& & Adeniran & 33.3* \\
+\midrule
+\multirow{3}{2.2cm}{\textit{Final Report*}} 
+& \multirow{3}{2.8cm}{Writing, documentation} 
+& Carmen & 33.3* \\
+& & Ju-Bin & 33.3* \\
+& & Adeniran & 33.3* \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\noindent \textit{*Indicates planned future work; percentages represent expected contributions to be finalized in the final report.}
+\end{table}
+
+
+\subsection{Next Steps}
+
+\subsubsection{Phase 1: Address Temporal Leakage (Nov 1-15)}
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item Implement time-based train-test split: Train on 2005-2020 data, validate on 2021-2022 data
+    \item Establish prediction windows: Create 6-month and 12-month ahead prediction tasks
+    \item Re-engineer temporal features: Calculate features using only information available before prediction cutoff
+    \item Remove post-hoc features: Exclude days\_since\_last\_review and similar features that incorporate future information
+    \item Re-evaluate baseline models with corrected features: Expect more realistic performance (ROC-AUC: 0.75-0.85)
+\end{enumerate}
+
+\subsubsection{Phase 2: Advanced Model Development (Nov 16-25)}
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item Implement gradient boosting algorithms: XGBoost and LightGBM with careful hyperparameter tuning
+    \item Develop ensemble methods: Stacking and weighted voting combining multiple algorithms
+    \item Explore neural network architectures: Multi-layer perceptrons for complex pattern recognition
+    \item Compare advanced models to corrected baselines using realistic temporal validation
+\end{enumerate}
+
+\subsubsection{Phase 3: Ablation Studies (Nov 26-28)}
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item Evaluate contribution of each feature category (A-F) by systematic removal
+    \item Validate impact of user credibility weighting framework
+    \item Test sensitivity to different prediction windows (6-month vs 12-month)
+    \item Analyze feature interactions and importance stability
+\end{enumerate}
+
+\subsubsection{Phase 4: Final Report and Documentation (Nov 29 - Dec 2)}
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item Complete comprehensive 6-page final report with all sections
+    \item Generate additional visualizations and case studies
+    \item Document code repository with reproducibility instructions
+    \item Prepare presentation materials if required
+\end{enumerate}
+
+% Our current implementation is still private, but you can access once we have expanded to other subreddits: \url{https://github.com/dingnan2/CS412_Final}.
+
+
+%%
+%% References
+%%
+\begin{thebibliography}{9}
+
+\bibitem{parsa2005}
+Parsa, H.G., Self, J.T., Njite, D., and King, T.
+\textit{Why Restaurants Fail}.
+Cornell Hotel and Restaurant Administration Quarterly, 46(3):304-322, 2005.
+
+\bibitem{nra2024}
+National Restaurant Association.
+\textit{2024 State of the Restaurant Industry Report}.
+National Restaurant Association, 2024.
+
+\end{thebibliography}
+
+\end{document}

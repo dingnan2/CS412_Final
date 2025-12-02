@@ -1,0 +1,271 @@
+%%
+%% This is file `sample-sigconf.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% samples.dtx  (with options: `all,proceedings,bibtex,sigconf')
+%% 
+%% IMPORTANT NOTICE:
+%% 
+%% For the copyright see the source file.
+%% 
+%% Any modified versions of this file must be renamed
+%% with new filenames distinct from sample-sigconf.tex.
+%% 
+%% For distribution of the original source see the terms
+%% for copying and modification in the file samples.dtx.
+%% 
+%% This generated file may be distributed as long as the
+%% original source files, as listed above, are part of the
+%% same distribution. (The sources need not necessarily be
+%% in the same archive or directory.)
+%%
+%%
+%% Commands for TeXCount
+%TC:macro \cite [option:text,text]
+%TC:macro \citep [option:text,text]
+%TC:macro \citet [option:text,text]
+%TC:envir table 0 1
+%TC:envir table* 0 1
+%TC:envir tabular [ignore] word
+%TC:envir displaymath 0 word
+%TC:envir math 0 word
+%TC:envir comment 0 0
+%%
+%% The first command in your LaTeX source must be the \documentclass
+%% command.
+%%
+%% For submission and review of your manuscript please change the
+%% command to \documentclass[manuscript, screen, review]{acmart}.
+%%
+%% When submitting camera ready or to TAPS, please change the command
+%% to \documentclass[sigconf]{acmart} or whichever template is required
+%% for your publication.
+%%
+%%
+\documentclass[sigconf]{acmart}
+%%
+%% \BibTeX command to typeset BibTeX logo in the docs
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+%% Rights management information.  This information is sent to you
+%% when you complete the rights form.  These commands have SAMPLE
+%% values in them; it is your responsibility as an author to replace
+%% the commands and values with those provided to you when you
+%% complete the rights form.
+%% These commands are for a PROCEEDINGS abstract or paper.
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\acmConference{Business Success Prediction using Yelp Dataset}{Research Proposal}{ Sep 2025}
+
+%%
+%%  Uncomment \acmBooktitle if the title of the proceedings is different
+%%  from ``Proceedings of ...''!
+%%
+%%\acmBooktitle{Woodstock '18: ACM Symposium on Neural Gaze Detection,
+%%  June 03--05, 2018, Woodstock, NY}
+
+
+%%
+%% Submission ID.
+%% Use this when submitting an article to a sponsored event. You'll
+%% receive a unique submission ID from the organizers
+%% of the event, and this ID should be used as the parameter to this command.
+%%\acmSubmissionID{123-A56-BU3}
+
+%%
+%% For managing citations, it is recommended to use bibliography
+%% files in BibTeX format.
+%%
+%% You can then either use BibTeX with the ACM-Reference-Format style,
+%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
+%% support for advanced citation of software artefact from the
+%% biblatex-software package, also separately available on CTAN.
+%%
+%% Look at the sample-*-biblatex.tex files for templates showcasing
+%% the biblatex styles.
+%%
+
+%%
+%% The majority of ACM publications use numbered citations and
+%% references.  The command \citestyle{authoryear} switches to the
+%% "author year" style.
+%%
+%% If you are preparing content for an event
+%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
+%% citations and references.
+%% Uncommenting
+%% the next command will enable that style.
+%%\citestyle{acmauthoryear}
+\usepackage{enumitem}
+\usepackage{placeins}
+\usepackage{float}
+\usepackage{makecell}
+\usepackage{caption}
+%%
+%% end of the preamble, start of the body of the document source.
+\makeatletter
+\def\@ACM@format@title@and@banner{}
+\makeatother
+\begin{document}
+
+
+
+\title{CS 412 Research Proposal \\ Business Success Prediction using Yelp Dataset}
+
+\author{Adeniran Coker}
+\affiliation{
+  \department{Department of Civil Engineering}
+  \program{Ph.D Civil Engineering}
+}
+\email{ac171}
+
+\author{Ju-Bin Choi}
+\affiliation{
+  \department{Siebel School of Computing and Data Science}
+  \program{Master of Computer Science}
+}
+\email{jubinc2}
+
+\author{Carmen Zheng}
+\affiliation{
+  \department{Siebel School of Computing and Data Science}
+  \program{Master of Computer Science}
+}
+\email{dingnan2}
+
+
+
+\maketitle
+\section{Introduction}
+
+This project predicts restaurant business success through a temporal-aware framework that jointly predicts business survival and future rating trajectories. Recent U.S. Bureau of Labor Statistics data shows only 17\% of restaurants fail in their first year, contradicting the widely cited 90\% failure myth \cite{parsa2014restaurant}. However, with over 72,000 restaurant closures in 2024 and approximately 49\% failing within five years \cite{nra2024closures}, prediction systems remain crucial for stakeholders.
+
+\textbf{Input:} Business metadata, timestamped reviews, and user engagement patterns from the Yelp Dataset (150K+ businesses, 8M+ reviSews).
+
+\textbf{Output:} Binary survival classification, predicted rating trajectory, and confidence intervals for 6, 12, and 24-month forecasting horizons.
+
+
+
+\section{Motivation}
+
+From a \textbf{data mining perspective}, predicting business closure is a challenging classification task that combines heterogeneous data types. It directly engages core techniques in feature engineering, temporal trend modeling, and handling class imbalance techniques from data mining coursework.
+From a \textbf{real-world perspective}, a prediction system provide value for entrepreneurs adapting strategies, investors identifying resilient businesses, and policymakers monitoring economic health.
+
+
+\section{Data}
+
+\textbf{Dataset:} Yelp Dataset containing 150K+ businesses, 8M+ reviews, and 2M+ users across multiple years in JSON format.
+
+\textbf{Size:} Review data (5.3 GB), user data (3.3 GB), business metadata (118 MB), check-ins (287 MB), and tips (181 MB).
+
+\textbf{Types:}
+\begin{itemize}
+    \item \textbf{Categorical:} business categories, attributes (parking, price range), location
+    \item \textbf{Numerical:} star ratings (1–5), review counts, check-in frequencies
+    \item \textbf{Text:} review and tip content for sentiment analysis
+    \item \textbf{Temporal:} timestamps on reviews and check-ins
+    \item \textbf{Network:} user–business relationships via reviews and tips
+\end{itemize}
+
+Target variables: (1) binary \texttt{is\_open} label for survival prediction, (2) future star ratings for trajectory forecasting.
+
+
+
+\section{Plan of Work}
+Our methodology implements a \textbf{User-weighted Ensemble Framework} with four main components: \\
+\textbf{Phase 1: Feature Engineering}
+\begin{itemize}
+\item Extract sentiment features from reviews
+\item Calculate rating velocity (change in average rating over time)
+\item Compute review volume metrics (frequency, patterns)
+\item Engineer business attribute features (category encoding, location clustering)
+\item Create temporal trend features (rating momentum, sentiment slope)
+\end{itemize}
+\textbf{Phase 2: Novel Framework Development}
+\begin{itemize}
+\item \textbf{User-weighted Aggregation}: Users with larger numbers of \textit{useful} votes and longer platform tenure receive higher weights in rating and sentiment calculations
+\item \textbf{Multi-level Classification}:
+\begin{itemize}
+\item Level 1: Business category classification to account for industry-specific patterns
+\item Level 2: Category-specific survival prediction models
+\end{itemize}
+\item \textbf{Ensemble Architecture}: Combine multiple algorithms (Random Forest, XGBoost, Neural Networks) with weighted voting %based on prediction confidence.
+\end{itemize}
+\textbf{Phase 3: Model Training and Validation}
+\begin{itemize}
+\item Split data by stratified sampling: 80/20 split within each major business category to ensure representative testing
+\item Implement k-fold cross-validation with stratification to prevent bias
+%\item Handle class imbalance using SMOTE and cost-sensitive learning
+\item Optimize hyperparameters %using Bayesian optimization
+\end{itemize}
+\textbf{Phase 4: Evaluation and Analysis}
+\begin{itemize}
+\item Compare against baseline models using ROC-AUC, precision/recall, and F1-scores
+\item Conduct multi-task analysis to assess contribution of different feature categories
+\item Analyze feature importance to identify key predictive factors
+%\item Perform case studies on specific business categories (restaurants, retail, services)
+\end{itemize}
+\section{Challenges}
+Although our project is designed to be feasible within the course timeline, several possible challenges may arise:
+\begin{enumerate}
+\item \textbf{Data Imbalance}: Most businesses in the Yelp dataset would remain open, meaning closure cases are relatively rare. This imbalance can bias models toward predicting 'Open' by default, difficult to predict 'Close' cases.
+
+\item \textbf{High-Dimensional Features}: Incorporating text reviews introduces thousands of potential features. Without careful selection, the model can overfit or become computationally inefficient. To mitigate this, we will rely on dimensionality reduction techniques.
+
+\item \textbf{Computational Complexity}: The Yelp data set is large and the training of advanced models could exceed local computing capacity. Our plan is to streamline data sampling and use efficient implementations. 
+
+\end{enumerate}
+\textbf{Mitigation Strategies}:
+\begin{itemize}
+\item Use existing sentiment analysis frameworks (BERT, TextBlob) rather than training custom models
+%\item Implement incremental learning approaches for large-scale processing
+\item Focus on interpretable models (Random Forest, Logistic Regression) alongside ensemble methods
+
+
+\end{itemize}
+\section{Milestones}
+\begin{itemize}
+\item \textbf{Stage 1: Data Preparation and EDA} (Sept 16 - Sept 30)
+\item \textbf{Stage 2: Baseline Implementation} (Oct 1 - Oct 15)
+\item \textbf{Stage 3: Advanced Framework Development} (Oct 16 - Oct 29)
+\item \textbf{Stage 4: Model Evaluation and Analysis} (Oct 30 - Nov 15)
+\item \textbf{Stage 5: Final Report and Documentation} (Nov 16 - Dec 2)
+\end{itemize}
+\section{Baselines}
+To measure the effectiveness of our proposed framework, we will compare it against baseline models.
+
+\begin{itemize}
+
+\item \textbf{Baseline 1: Logistic Regression}\\
+Logistic regression predicts the probability of success based on a linear combination of features. It serves as a statistical benchmark, showing how much predictive power comes from basic aggregated information without modeling complex patterns.
+
+\item \textbf{Baseline 2: Decision Tree}\\
+Decision tree classifies businesses by splitting data into rule-based groups (e.g., by price range and number of reviews). This allows for modeling of nonlinear relationships and feature interactions. It tests whether structured business can meaningfully predict success rate.
+
+
+\item \textbf{Baseline 3: Random Forest}\\
+Random forest combines many decision trees to improve stability and reduce overfitting. Using both business metadata and summarized review statistics, this model evaluates the added value of incorporating customer feedback in aggregate form.
+\end{itemize}
+
+\begin{thebibliography}{9}
+
+\bibitem{parsa2014restaurant}
+Parsa, H.G., Self, J.T., Njite, D., and King, T.
+\textit{Why Restaurants Fail}.
+Cornell Hotel and Restaurant Administration Quarterly, 46(3):304-322, 2005.
+
+\bibitem{nra2024closures}
+National Restaurant Association.
+\textit{2024 State of the Restaurant Industry Report}.
+National Restaurant Association, 2024.
+
+
+\end{thebibliography}
+
+\end{document}
