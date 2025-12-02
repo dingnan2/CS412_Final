@@ -43,6 +43,26 @@ pip install pandas numpy scikit-learn matplotlib seaborn
 pip install xgboost lightgbm vaderSentiment
 ```
 
+
+### If You Have Not Downloaded the Yelp Dataset Yet
+
+Before running any preprocessing or modeling scripts, ensure that you have downloaded the **Yelp Open Dataset** and placed it under:
+
+```
+data/raw/
+    yelp_academic_dataset_business.json
+    yelp_academic_dataset_review.json
+    yelp_academic_dataset_user.json
+```
+
+You can download the dataset from the official source:
+[Yelp Dataset](https://www.kaggle.com/datasets/yelp-dataset/yelp-dataset/data)
+
+If the files are missing, the pipeline will not run successfully.
+After downloading, simply place the JSON files into `data/raw/` and proceed with the following pipelines.
+
+
+
 ### Run Complete Pipeline
 ```bash
 # Phase 1: Data preprocessing
