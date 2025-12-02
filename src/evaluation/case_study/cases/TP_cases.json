@@ -1,0 +1,642 @@
+[
+  {
+    "case_type": "TP",
+    "business_id": "G7UzqSWntpAZ5LFv00D2jA",
+    "business_name": "North Valley Automotive",
+    "city": "Reno",
+    "state": "NV",
+    "categories": "Automotive, Auto Repair",
+    "prediction_year": 2019,
+    "true_label": 1,
+    "predicted_label": 1,
+    "prediction_probability": 0.9698294700287774,
+    "top_features": {
+      "category_encoded": {
+        "value": 0.9088168961291312,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 1.6461190250338282,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.9125631313131312,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": 1.6550551436598437,
+        "direction": "higher"
+      },
+      "review_count": {
+        "value": 29.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -0.34737647579997555,
+        "direction": "lower"
+      },
+      "weighted_avg_rating": {
+        "value": 4.780003611751609,
+        "importance": 0.023611738785174603,
+        "deviation_from_reference": 1.3344949169692233,
+        "direction": "higher"
+      },
+      "weighted_sentiment": {
+        "value": 0.8900018058758045,
+        "importance": 0.022740326862537904,
+        "deviation_from_reference": 1.3344949169692228,
+        "direction": "higher"
+      },
+      "avg_review_stars": {
+        "value": 4.666666666666667,
+        "importance": 0.021218207322084105,
+        "deviation_from_reference": 1.2130376723784513,
+        "direction": "higher"
+      },
+      "stars": {
+        "value": 5.0,
+        "importance": 0.013848691979319512,
+        "deviation_from_reference": 1.669841185775857,
+        "direction": "higher"
+      },
+      "size_activity_interaction": {
+        "value": 0.0140218580018869,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.4164509039349107,
+        "direction": "lower"
+      },
+      "avg_reviewer_tenure": {
+        "value": 11.450083113327468,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": 0.3588610217821121,
+        "direction": "higher"
+      },
+      "review_frequency": {
+        "value": 0.0050573162508428,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": -0.40763327627732354,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 15,
+      "avg_review_stars": 4.666666666666667,
+      "std_review_stars": 1.0465362369445672,
+      "days_since_first_review": 2966,
+      "review_recency_ratio": 0.9959541469993256,
+      "review_frequency": 0.0050573162508428,
+      "total_useful_votes": 20.5,
+      "avg_useful_per_review": 1.3666666666666667,
+      "avg_sentiment": 0.7527933333333333,
+      "std_sentiment": 0.4843986670318387,
+      "sentiment_volatility": 0.6350326436586216,
+      "pct_positive_reviews": 0.9333333333333332,
+      "pct_negative_reviews": 0.0666666666666666,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 517.6666666666666,
+      "std_text_length": 460.5394904047016,
+      "sentiment_recent_3m": 0.9476,
+      "avg_reviewer_credibility": 0.8320347670489379,
+      "std_reviewer_credibility": 0.4406573097983661,
+      "weighted_avg_rating": 4.780003611751609,
+      "weighted_sentiment": 0.8900018058758045,
+      "pct_high_credibility_reviewers": 0.5333333333333333,
+      "weighted_useful_votes": 15.382977076945943,
+      "avg_reviewer_tenure": 11.450083113327468,
+      "avg_reviewer_experience": 55.142857142857146,
+      "review_diversity": 0.9333333333333332,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": 0.0109890109890109,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": 0.4464285714285712,
+      "rating_credibility_interaction": 3.882828912895044,
+      "momentum_credibility_interaction": 0.0091432391983399,
+      "size_activity_interaction": 0.0140218580018869,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 2.5527267091777093,
+      "stars": 5.0,
+      "review_count": 29.0,
+      "category_encoded": 0.9088168961291312,
+      "state_encoded": 0.8087132218823694,
+      "city_encoded": 0.7973021811971198,
+      "has_multiple_categories": 1.0,
+      "category_count": 2.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.9125631313131312,
+      "state_avg_success_rate": 0.8089745393163595,
+      "city_avg_success_rate": 0.7974335472043996,
+      "category_competitiveness": 162.0,
+      "location_density": 5455.0
+    }
+  },
+  {
+    "case_type": "TP",
+    "business_id": "LvdZYxyJ5HhdRfskj6z6RQ",
+    "business_name": "JSL Auto Glass",
+    "city": "Reno",
+    "state": "NV",
+    "categories": "Automotive, Home Services, Windshield Installation & Repair, Auto Glass Services, Windows Installation",
+    "prediction_year": 2020,
+    "true_label": 1,
+    "predicted_label": 1,
+    "prediction_probability": 0.9750384671615706,
+    "top_features": {
+      "review_count": {
+        "value": 19.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -0.7022496191845645,
+        "direction": "lower"
+      },
+      "category_encoded": {
+        "value": 0.9088168961291312,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 1.6461190250338282,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.9125631313131312,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": 1.6550551436598437,
+        "direction": "higher"
+      },
+      "weighted_avg_rating": {
+        "value": 4.772579129179113,
+        "importance": 0.023611738785174603,
+        "deviation_from_reference": 1.3262238844838579,
+        "direction": "higher"
+      },
+      "weighted_sentiment": {
+        "value": 0.8862895645895569,
+        "importance": 0.022740326862537904,
+        "deviation_from_reference": 1.3262238844838588,
+        "direction": "higher"
+      },
+      "avg_review_stars": {
+        "value": 4.583333333333333,
+        "importance": 0.021218207322084105,
+        "deviation_from_reference": 1.1193099136280498,
+        "direction": "higher"
+      },
+      "size_activity_interaction": {
+        "value": 0.0104941671631566,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.427466875508089,
+        "direction": "lower"
+      },
+      "review_frequency": {
+        "value": 0.0040913740197749,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": -0.42323744003060876,
+        "direction": "lower"
+      },
+      "stars": {
+        "value": 4.5,
+        "importance": 0.013848691979319512,
+        "deviation_from_reference": 1.0926939114528642,
+        "direction": "higher"
+      },
+      "engagement_credibility_interaction": {
+        "value": 1.844493544903463,
+        "importance": 0.019683179983219588,
+        "deviation_from_reference": -0.6327537944922489,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 12,
+      "avg_review_stars": 4.583333333333333,
+      "std_review_stars": 1.1645001528813148,
+      "days_since_first_review": 2933,
+      "review_recency_ratio": 0.9509035117627004,
+      "review_frequency": 0.0040913740197749,
+      "total_useful_votes": 14.5,
+      "avg_useful_per_review": 1.2083333333333333,
+      "avg_sentiment": 0.6420583333333333,
+      "std_sentiment": 0.5870752996256575,
+      "sentiment_volatility": 0.9003416866471419,
+      "pct_positive_reviews": 0.8333333333333334,
+      "pct_negative_reviews": 0.1666666666666666,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 436.0,
+      "std_text_length": 327.052493238216,
+      "sentiment_recent_3m": 0.6420583333333333,
+      "avg_reviewer_credibility": 0.6729665098300536,
+      "std_reviewer_credibility": 0.3662010331485139,
+      "weighted_avg_rating": 4.772579129179113,
+      "weighted_sentiment": 0.8862895645895569,
+      "pct_high_credibility_reviewers": 0.4166666666666667,
+      "weighted_useful_votes": 13.227969116771888,
+      "avg_reviewer_tenure": 11.05224731918777,
+      "avg_reviewer_experience": 34.5,
+      "review_diversity": 1.0,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": 0.0363636363636363,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": -0.5,
+      "rating_credibility_interaction": 3.0844298367210787,
+      "momentum_credibility_interaction": 0.0244715094483655,
+      "size_activity_interaction": 0.0104941671631566,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 1.844493544903463,
+      "stars": 4.5,
+      "review_count": 19.0,
+      "category_encoded": 0.9088168961291312,
+      "state_encoded": 0.8087132218823694,
+      "city_encoded": 0.7973021811971198,
+      "has_multiple_categories": 1.0,
+      "category_count": 5.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.9125631313131312,
+      "state_avg_success_rate": 0.8089745393163595,
+      "city_avg_success_rate": 0.7974335472043996,
+      "category_competitiveness": 162.0,
+      "location_density": 5455.0
+    }
+  },
+  {
+    "case_type": "TP",
+    "business_id": "5yfBd5xaPzmMrkb3D4l0lw",
+    "business_name": "Paws N Claws",
+    "city": "Burlington",
+    "state": "NJ",
+    "categories": "Local Services, Veterinarians, Adoption Services, Pets, Pet Adoption",
+    "prediction_year": 2019,
+    "true_label": 1,
+    "predicted_label": 1,
+    "prediction_probability": 0.9762518178222342,
+    "top_features": {
+      "review_count": {
+        "value": 16.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -0.8087115621999412,
+        "direction": "lower"
+      },
+      "category_encoded": {
+        "value": 0.8971980250000003,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 1.4825519889376821,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.9018087855297158,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": 1.5074603371727524,
+        "direction": "higher"
+      },
+      "avg_reviewer_tenure": {
+        "value": 10.185078713210128,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": -0.5373003382992512,
+        "direction": "lower"
+      },
+      "days_since_first_review": {
+        "value": 1689,
+        "importance": 0.0299740610482687,
+        "deviation_from_reference": -0.9200617648576096,
+        "direction": "lower"
+      },
+      "avg_useful_per_review": {
+        "value": 1.6363636363636365,
+        "importance": 0.02558014130311138,
+        "deviation_from_reference": 0.9823329545941657,
+        "direction": "higher"
+      },
+      "size_activity_interaction": {
+        "value": 0.0161835246581811,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.40970063597634016,
+        "direction": "lower"
+      },
+      "review_frequency": {
+        "value": 0.0065127294256956,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": -0.3841220301813907,
+        "direction": "lower"
+      },
+      "avg_review_stars": {
+        "value": 4.363636363636363,
+        "importance": 0.021218207322084105,
+        "deviation_from_reference": 0.8722094587406299,
+        "direction": "higher"
+      },
+      "std_sentiment": {
+        "value": 0.2476449447852428,
+        "importance": 0.01567260126102098,
+        "deviation_from_reference": -1.1661383467614717,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 11,
+      "avg_review_stars": 4.363636363636363,
+      "std_review_stars": 1.2060453783110543,
+      "days_since_first_review": 1689,
+      "review_recency_ratio": 0.9224393132030788,
+      "review_frequency": 0.0065127294256956,
+      "total_useful_votes": 18.0,
+      "avg_useful_per_review": 1.6363636363636365,
+      "avg_sentiment": 0.8631636363636364,
+      "std_sentiment": 0.2476449447852428,
+      "sentiment_volatility": 0.2836180235546467,
+      "pct_positive_reviews": 1.0,
+      "pct_negative_reviews": 0.0,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 482.9090909090909,
+      "std_text_length": 263.7751985534289,
+      "sentiment_recent_3m": 0.8631636363636364,
+      "avg_reviewer_credibility": 0.7920091326744878,
+      "std_reviewer_credibility": 0.4163630725094992,
+      "weighted_avg_rating": 4.18425367926372,
+      "weighted_sentiment": 0.5921268396318603,
+      "pct_high_credibility_reviewers": 0.5454545454545454,
+      "weighted_useful_votes": 17.511731801300794,
+      "avg_reviewer_tenure": 10.185078713210128,
+      "avg_reviewer_experience": 31.4,
+      "review_diversity": 0.9090909090909092,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": -0.0545454545454545,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": -0.0666666666666673,
+      "rating_credibility_interaction": 3.456039851670492,
+      "momentum_credibility_interaction": -0.0432004981458811,
+      "size_activity_interaction": 0.0161835246581811,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 2.3320225621025665,
+      "stars": 4.0,
+      "review_count": 16.0,
+      "category_encoded": 0.8971980250000003,
+      "state_encoded": 0.8186500814554565,
+      "city_encoded": 0.8181550191932635,
+      "has_multiple_categories": 1.0,
+      "category_count": 5.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.9018087855297158,
+      "state_avg_success_rate": 0.819002845478164,
+      "city_avg_success_rate": 0.8176470588235294,
+      "category_competitiveness": 4.0,
+      "location_density": 170.0
+    }
+  },
+  {
+    "case_type": "TP",
+    "business_id": "yUhNn30LM1MyWTKn6ObomA",
+    "business_name": "Detail Daddy",
+    "city": "Dunedin",
+    "state": "FL",
+    "categories": "Automotive, Auto Detailing",
+    "prediction_year": 2019,
+    "true_label": 1,
+    "predicted_label": 1,
+    "prediction_probability": 0.977946316156131,
+    "top_features": {
+      "review_count": {
+        "value": 13.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -0.915173505215318,
+        "direction": "lower"
+      },
+      "std_review_stars": {
+        "value": 0.3162277660168379,
+        "importance": 0.022397217262209383,
+        "deviation_from_reference": -1.974542506261129,
+        "direction": "lower"
+      },
+      "category_encoded": {
+        "value": 0.9088168961291312,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 1.6461190250338282,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.9125631313131312,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": 1.6550551436598437,
+        "direction": "higher"
+      },
+      "weighted_avg_rating": {
+        "value": 4.868947638252756,
+        "importance": 0.023611738785174603,
+        "deviation_from_reference": 1.4335804660814826,
+        "direction": "higher"
+      },
+      "weighted_sentiment": {
+        "value": 0.934473819126378,
+        "importance": 0.022740326862537904,
+        "deviation_from_reference": 1.4335804660814824,
+        "direction": "higher"
+      },
+      "avg_review_stars": {
+        "value": 4.9,
+        "importance": 0.021218207322084105,
+        "deviation_from_reference": 1.4754753968795733,
+        "direction": "higher"
+      },
+      "avg_reviewer_tenure": {
+        "value": 11.562765229295003,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": 0.43868790482927444,
+        "direction": "higher"
+      },
+      "std_sentiment": {
+        "value": 0.1693987001130764,
+        "importance": 0.01567260126102098,
+        "deviation_from_reference": -1.5105977487665947,
+        "direction": "lower"
+      },
+      "size_activity_interaction": {
+        "value": 0.0103670353341909,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.4278638719224449,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 10,
+      "avg_review_stars": 4.9,
+      "std_review_stars": 0.3162277660168379,
+      "days_since_first_review": 2313,
+      "review_recency_ratio": 0.9762213575443148,
+      "review_frequency": 0.0043233895373973,
+      "total_useful_votes": 8.0,
+      "avg_useful_per_review": 0.8,
+      "avg_sentiment": 0.8539200000000001,
+      "std_sentiment": 0.1693987001130764,
+      "sentiment_volatility": 0.1960814660073576,
+      "pct_positive_reviews": 1.0,
+      "pct_negative_reviews": 0.0,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 398.9,
+      "std_text_length": 235.9052564060411,
+      "sentiment_recent_3m": 0.6476,
+      "avg_reviewer_credibility": 0.7132491045398476,
+      "std_reviewer_credibility": 0.2482017549613298,
+      "weighted_avg_rating": 4.868947638252756,
+      "weighted_sentiment": 0.934473819126378,
+      "pct_high_credibility_reviewers": 0.4,
+      "weighted_useful_votes": 6.502175241497443,
+      "avg_reviewer_tenure": 11.562765229295003,
+      "avg_reviewer_experience": 20.2,
+      "review_diversity": 1.0,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": 2.630557450796067e-17,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": -0.2000000000000001,
+      "rating_credibility_interaction": 3.494920612245253,
+      "momentum_credibility_interaction": 1.876242746220919e-17,
+      "size_activity_interaction": 0.0103670353341909,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 1.5671684622580038,
+      "stars": 4.5,
+      "review_count": 13.0,
+      "category_encoded": 0.9088168961291312,
+      "state_encoded": 0.8123762879509029,
+      "city_encoded": 0.820812932885306,
+      "has_multiple_categories": 1.0,
+      "category_count": 2.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.9125631313131312,
+      "state_avg_success_rate": 0.8124668975351396,
+      "city_avg_success_rate": 0.8275109170305677,
+      "category_competitiveness": 13.0,
+      "location_density": 458.0
+    }
+  },
+  {
+    "case_type": "TP",
+    "business_id": "Zwopsn5k1ZfZMv6LggiVMg",
+    "business_name": "Largo Plumbing",
+    "city": "Largo",
+    "state": "FL",
+    "categories": "Home Services, Plumbing, Water Heater Installation/Repair, Contractors",
+    "prediction_year": 2019,
+    "true_label": 1,
+    "predicted_label": 1,
+    "prediction_probability": 0.9972772299730126,
+    "top_features": {
+      "review_count": {
+        "value": 7.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -1.1280973912460714,
+        "direction": "lower"
+      },
+      "std_review_stars": {
+        "value": 0.0,
+        "importance": 0.022397217262209383,
+        "deviation_from_reference": -2.6007187233568394,
+        "direction": "lower"
+      },
+      "category_encoded": {
+        "value": 0.9208444492084056,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 1.8154393649189609,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.9247184350918792,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": 1.8218769797014938,
+        "direction": "higher"
+      },
+      "weighted_avg_rating": {
+        "value": 4.999999999999999,
+        "importance": 0.023611738785174603,
+        "deviation_from_reference": 1.579575601865184,
+        "direction": "higher"
+      },
+      "avg_reviewer_tenure": {
+        "value": 11.815879534565363,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": 0.6180005301814826,
+        "direction": "higher"
+      },
+      "weighted_sentiment": {
+        "value": 1.0,
+        "importance": 0.022740326862537904,
+        "deviation_from_reference": 1.5795756018651848,
+        "direction": "higher"
+      },
+      "days_since_first_review": {
+        "value": 1422,
+        "importance": 0.0299740610482687,
+        "deviation_from_reference": -1.1804445734351705,
+        "direction": "lower"
+      },
+      "avg_review_stars": {
+        "value": 5.0,
+        "importance": 0.021218207322084105,
+        "deviation_from_reference": 1.5879487073800536,
+        "direction": "higher"
+      },
+      "std_sentiment": {
+        "value": 0.1768967566124376,
+        "importance": 0.01567260126102098,
+        "deviation_from_reference": -1.4775894418658377,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 4,
+      "avg_review_stars": 5.0,
+      "std_review_stars": 0.0,
+      "days_since_first_review": 1422,
+      "review_recency_ratio": 0.89943741209564,
+      "review_frequency": 0.0028129395218002,
+      "total_useful_votes": 4.0,
+      "avg_useful_per_review": 1.0,
+      "avg_sentiment": 0.8105500000000001,
+      "std_sentiment": 0.1768967566124376,
+      "sentiment_volatility": 0.2155831535097649,
+      "pct_positive_reviews": 1.0,
+      "pct_negative_reviews": 0.0,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 474.0,
+      "std_text_length": 202.6265036958393,
+      "sentiment_recent_3m": 0.8105500000000001,
+      "avg_reviewer_credibility": 0.6186857128703601,
+      "std_reviewer_credibility": 0.265739505820924,
+      "weighted_avg_rating": 4.999999999999999,
+      "weighted_sentiment": 1.0,
+      "pct_high_credibility_reviewers": 0.25,
+      "weighted_useful_votes": 3.218571235168616,
+      "avg_reviewer_tenure": 11.815879534565363,
+      "avg_reviewer_experience": 123.0,
+      "review_diversity": 1.0,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": 0.0,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": 0.0,
+      "rating_credibility_interaction": 3.0934285643518007,
+      "momentum_credibility_interaction": 0.0,
+      "size_activity_interaction": 0.0045272515117696,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 0.9957362421748756,
+      "stars": 4.5,
+      "review_count": 7.0,
+      "category_encoded": 0.9208444492084056,
+      "state_encoded": 0.8123762879509029,
+      "city_encoded": 0.8120872605160669,
+      "has_multiple_categories": 1.0,
+      "category_count": 4.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.9247184350918792,
+      "state_avg_success_rate": 0.8124668975351396,
+      "city_avg_success_rate": 0.81445523193096,
+      "category_competitiveness": 24.0,
+      "location_density": 927.0
+    }
+  }
+]

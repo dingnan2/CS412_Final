@@ -1,0 +1,152 @@
+{
+  "ablation": {
+    "Baseline": {
+      "experiment": "Baseline_All_Features",
+      "n_features": 52,
+      "roc_auc": 0.8408896799960663,
+      "precision": 0.9583449484289753,
+      "recall": 0.9360535221128787,
+      "f1": 0.9470680834317198
+    },
+    "Remove_A_Static": {
+      "experiment": "Remove_A_Static",
+      "n_features": 44,
+      "roc_auc": 0.7950367437950295,
+      "precision": 0.950453078209466,
+      "recall": 0.9506009568633552,
+      "f1": 0.9505270117848392,
+      "auc_drop": 0.04585293620103681,
+      "f1_drop": -0.0034589283531194503
+    },
+    "Remove_B_Review_Agg": {
+      "experiment": "Remove_B_Review_Agg",
+      "n_features": 44,
+      "roc_auc": 0.8519735260832966,
+      "precision": 0.9589397704413679,
+      "recall": 0.9456610525496908,
+      "f1": 0.9522541224393875,
+      "auc_drop": -0.011083846087230231,
+      "f1_drop": -0.0051860390076676754
+    },
+    "Remove_C_Sentiment": {
+      "experiment": "Remove_C_Sentiment",
+      "n_features": 43,
+      "roc_auc": 0.8363905305901977,
+      "precision": 0.958609072313801,
+      "recall": 0.9296744330779104,
+      "f1": 0.9439200663480906,
+      "auc_drop": 0.004499149405868597,
+      "f1_drop": 0.0031480170836292176
+    },
+    "Remove_D_User_Weighted": {
+      "experiment": "Remove_D_User_Weighted",
+      "n_features": 43,
+      "roc_auc": 0.8239646502546278,
+      "precision": 0.9692931633835458,
+      "recall": 0.8459683379361314,
+      "f1": 0.9034415436060398,
+      "auc_drop": 0.016925029741438502,
+      "f1_drop": 0.04362653982567999
+    },
+    "Remove_E_Temporal": {
+      "experiment": "Remove_E_Temporal",
+      "n_features": 44,
+      "roc_auc": 0.8540462759168839,
+      "precision": 0.9588606339508866,
+      "recall": 0.9401376949706328,
+      "f1": 0.9494068662110142,
+      "auc_drop": -0.013156595920817526,
+      "f1_drop": -0.002338782779294446
+    },
+    "Remove_F_Location": {
+      "experiment": "Remove_F_Location",
+      "n_features": 47,
+      "roc_auc": 0.8146470116918163,
+      "precision": 0.9552232902179503,
+      "recall": 0.939320860399082,
+      "f1": 0.9472053343792901,
+      "auc_drop": 0.02624266830425004,
+      "f1_drop": -0.00013725094757033318
+    },
+    "Remove_G_Interaction": {
+      "experiment": "Remove_G_Interaction",
+      "n_features": 47,
+      "roc_auc": 0.8387372787005799,
+      "precision": 0.9568829113924051,
+      "recall": 0.9409156326578241,
+      "f1": 0.948832101041401,
+      "auc_drop": 0.002152401295486439,
+      "f1_drop": -0.0017640176096812565
+    }
+  },
+  "additive": {
+    "Base_Static": {
+      "experiment": "Base_Static_Only",
+      "n_features": 8,
+      "roc_auc": 0.8754412021302281,
+      "precision": 0.9808103336121178,
+      "recall": 0.8210743319460111,
+      "f1": 0.8938620821070907
+    },
+    "Add_B_Review_Agg": {
+      "experiment": "Add_B_Review_Agg",
+      "n_features": 16,
+      "roc_auc": 0.7931171963125754,
+      "precision": 0.9699560332193454,
+      "recall": 0.7722976389591194,
+      "f1": 0.8599146798328244,
+      "auc_gain": -0.08232400581765276,
+      "f1_gain": -0.03394740227426629
+    },
+    "Add_C_Sentiment": {
+      "experiment": "Add_C_Sentiment",
+      "n_features": 17,
+      "roc_auc": 0.7774548933748331,
+      "precision": 0.9619300575475874,
+      "recall": 0.8452292971332996,
+      "f1": 0.8998115903020767,
+      "auc_gain": -0.09798630875539505,
+      "f1_gain": 0.005949508194985964
+    },
+    "Add_D_User_Weighted": {
+      "experiment": "Add_D_User_Weighted",
+      "n_features": 17,
+      "roc_auc": 0.8040948098712952,
+      "precision": 0.9584035975267003,
+      "recall": 0.928468629662764,
+      "f1": 0.9431986565247457,
+      "auc_gain": -0.07134639225893291,
+      "f1_gain": 0.04933657441765493
+    },
+    "Add_E_Temporal": {
+      "experiment": "Add_E_Temporal",
+      "n_features": 16,
+      "roc_auc": 0.7446783397378642,
+      "precision": 0.9654355822038595,
+      "recall": 0.7453032012135828,
+      "f1": 0.8412064272543682,
+      "auc_gain": -0.1307628623923639,
+      "f1_gain": -0.0526556548527225
+    },
+    "Add_F_Location": {
+      "experiment": "Add_F_Location",
+      "n_features": 13,
+      "roc_auc": 0.8914515243909152,
+      "precision": 0.9830337952165363,
+      "recall": 0.8361274261931619,
+      "f1": 0.9036488986043383,
+      "auc_gain": 0.016010322260687104,
+      "f1_gain": 0.009786816497247552
+    },
+    "Add_G_Interaction": {
+      "experiment": "Add_G_Interaction",
+      "n_features": 13,
+      "roc_auc": 0.8294377354454098,
+      "precision": 0.9747919031403708,
+      "recall": 0.8017036835349488,
+      "f1": 0.8798155934518601,
+      "auc_gain": -0.04600346668481836,
+      "f1_gain": -0.014046488655230616
+    }
+  }
+}

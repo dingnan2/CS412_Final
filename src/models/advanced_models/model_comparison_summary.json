@@ -1,0 +1,8 @@
+{
+  "baseline_model": "XGBoost",
+  "baseline_auc": 0.8860061440564461,
+  "best_model": "XGBoost",
+  "best_auc": 0.8860061440564461,
+  "improvement": 0.0,
+  "pct_improvement": 0.0
+}

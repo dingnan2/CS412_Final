@@ -1,0 +1,29 @@
+{
+  "business": {
+    "input_rows": 150346,
+    "final_rows": 150346,
+    "duplicates_removed": 0,
+    "stars_filled": 0,
+    "review_count_filled": 0,
+    "columns_removed": 4,
+    "outliers_handled": 18302,
+    "quality_filter": {
+      "min_reviews_removed": 0,
+      "suspicious_removed": 9391,
+      "no_category_removed": 97,
+      "final_after_quality_filter": 140858
+    }
+  },
+  "review": {
+    "input_rows": 1372781,
+    "final_rows": 1372781,
+    "duplicates_removed": 0,
+    "rows_dropped_invalid_date": 0
+  },
+  "user": {
+    "input_rows": 1987897,
+    "final_rows": 1987897,
+    "duplicates_removed": 0,
+    "rows_dropped_invalid_date": 0
+  }
+}

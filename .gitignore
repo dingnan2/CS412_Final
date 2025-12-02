@@ -91,7 +91,6 @@ docs/
 logs/
 *.png
 *.csv
-*.json
 
-*.md
+
 !README.md

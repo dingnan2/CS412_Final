@@ -1,0 +1,87 @@
+{
+  "XGBoost": {
+    "model_name": "XGBoost",
+    "roc_auc": 0.8860061440564461,
+    "precision": 0.9762653456816713,
+    "recall": 0.8815589871251313,
+    "f1": 0.9264982421715313,
+    "confusion_matrix": [
+      [
+        1145,
+        551
+      ],
+      [
+        3045,
+        22664
+      ]
+    ]
+  },
+  "LightGBM": {
+    "model_name": "LightGBM",
+    "roc_auc": 0.8178405697439484,
+    "precision": 0.9733257121082214,
+    "recall": 0.7948189350033062,
+    "f1": 0.8750615592146115,
+    "confusion_matrix": [
+      [
+        1136,
+        560
+      ],
+      [
+        5275,
+        20434
+      ]
+    ]
+  },
+  "NeuralNetwork": {
+    "model_name": "NeuralNetwork",
+    "roc_auc": 0.8146001794760956,
+    "precision": 0.9584418659720578,
+    "recall": 0.9446108366719825,
+    "f1": 0.9514760906615471,
+    "confusion_matrix": [
+      [
+        643,
+        1053
+      ],
+      [
+        1424,
+        24285
+      ]
+    ]
+  },
+  "Ensemble_Voting": {
+    "model_name": "Ensemble_Voting",
+    "roc_auc": 0.878364672235037,
+    "precision": 0.9672025464361981,
+    "recall": 0.933719709051305,
+    "f1": 0.950166244458518,
+    "confusion_matrix": [
+      [
+        882,
+        814
+      ],
+      [
+        1704,
+        24005
+      ]
+    ]
+  },
+  "Ensemble_Stacking": {
+    "model_name": "Ensemble_Stacking",
+    "roc_auc": 0.8603397505241905,
+    "precision": 0.956140350877193,
+    "recall": 0.9624256097086623,
+    "f1": 0.9592726849787737,
+    "confusion_matrix": [
+      [
+        561,
+        1135
+      ],
+      [
+        966,
+        24743
+      ]
+    ]
+  }
+}

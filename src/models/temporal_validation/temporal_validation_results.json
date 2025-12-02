@@ -1,0 +1,104 @@
+{
+  "LogisticRegression": {
+    "roc_auc": 0.6839662776855914,
+    "precision": 0.9539734675596127,
+    "recall": 0.8698899218172624,
+    "f1": 0.9099934895833334,
+    "confusion_matrix": [
+      [
+        617,
+        1079
+      ],
+      [
+        3345,
+        22364
+      ]
+    ],
+    "split_info": {
+      "train_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018
+      ],
+      "test_years": [
+        2019,
+        2020
+      ],
+      "train_size": 76622,
+      "test_size": 27405,
+      "split_type": "temporal_holdout"
+    }
+  },
+  "DecisionTree": {
+    "roc_auc": 0.6940483111229677,
+    "precision": 0.965625,
+    "recall": 0.63701427515656,
+    "f1": 0.767629895240104,
+    "confusion_matrix": [
+      [
+        1113,
+        583
+      ],
+      [
+        9332,
+        16377
+      ]
+    ],
+    "split_info": {
+      "train_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018
+      ],
+      "test_years": [
+        2019,
+        2020
+      ],
+      "train_size": 76622,
+      "test_size": 27405,
+      "split_type": "temporal_holdout"
+    }
+  },
+  "RandomForest": {
+    "roc_auc": 0.8416519992998561,
+    "precision": 0.9576240923699559,
+    "recall": 0.9387763040180481,
+    "f1": 0.9481065367693274,
+    "confusion_matrix": [
+      [
+        628,
+        1068
+      ],
+      [
+        1574,
+        24135
+      ]
+    ],
+    "split_info": {
+      "train_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018
+      ],
+      "test_years": [
+        2019,
+        2020
+      ],
+      "train_size": 76622,
+      "test_size": 27405,
+      "split_type": "temporal_holdout"
+    }
+  }
+}

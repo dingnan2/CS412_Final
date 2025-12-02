@@ -1,0 +1,537 @@
+{
+  "False Positive": [
+    {
+      "feature": "category_encoded",
+      "error_mean": -0.09824646460326676,
+      "overall_mean": 0.07337568040988084,
+      "difference": -0.1716221450131476,
+      "effect_size": -0.17233545277752646,
+      "p_value": 7.227971581895551e-08,
+      "t_statistic": -5.420784831272498
+    },
+    {
+      "feature": "category_avg_success_rate",
+      "error_mean": -0.09765499613508362,
+      "overall_mean": 0.07348129525121559,
+      "difference": -0.1711362913862992,
+      "effect_size": -0.17175614352064714,
+      "p_value": 7.351511079983295e-08,
+      "t_statistic": -5.41766216430894
+    },
+    {
+      "feature": "city_avg_success_rate",
+      "error_mean": -0.043408328816238684,
+      "overall_mean": 0.1174044532035059,
+      "difference": -0.16081278201974458,
+      "effect_size": -0.16260561862946651,
+      "p_value": 1.1454888187168338e-05,
+      "t_statistic": -4.407510234717985
+    },
+    {
+      "feature": "avg_useful_per_review",
+      "error_mean": -0.4010735367917005,
+      "overall_mean": -0.30736461236669266,
+      "difference": -0.09370892442500783,
+      "effect_size": -0.10832564691953676,
+      "p_value": 0.00013237740450206914,
+      "t_statistic": -3.834759674679581
+    },
+    {
+      "feature": "lifecycle_stage",
+      "error_mean": 0.29611446318835616,
+      "overall_mean": 0.20094531231087653,
+      "difference": 0.09516915087747962,
+      "effect_size": 0.10636444062374757,
+      "p_value": 0.00020050170147318806,
+      "t_statistic": 3.7302016875114705
+    },
+    {
+      "feature": "std_reviewer_credibility",
+      "error_mean": 0.0877366838610026,
+      "overall_mean": -0.006620149183604664,
+      "difference": 0.09435683304460726,
+      "effect_size": 0.09529674861794599,
+      "p_value": 0.009964839603150245,
+      "t_statistic": 2.581424147276932
+    },
+    {
+      "feature": "review_count",
+      "error_mean": -0.04862028828855602,
+      "overall_mean": -0.12341220449900014,
+      "difference": 0.07479191621044412,
+      "effect_size": 0.07431422256385908,
+      "p_value": 0.024186445602385868,
+      "t_statistic": 2.257157757017301
+    },
+    {
+      "feature": "avg_reviewer_tenure",
+      "error_mean": -1.1514823775621847,
+      "overall_mean": -1.2141566272304216,
+      "difference": 0.06267424966823687,
+      "effect_size": 0.07405752541353626,
+      "p_value": 0.016357745264000623,
+      "t_statistic": 2.4043571720568355
+    },
+    {
+      "feature": "engagement_credibility_interaction",
+      "error_mean": -0.08212257179173124,
+      "overall_mean": -0.15085861080154708,
+      "difference": 0.06873603900981584,
+      "effect_size": 0.07042924400494473,
+      "p_value": 0.024258483388444774,
+      "t_statistic": 2.2559862735349467
+    },
+    {
+      "feature": "rating_trend_3m",
+      "error_mean": -0.136125286179807,
+      "overall_mean": -0.06355412983754508,
+      "difference": -0.07257115634226191,
+      "effect_size": -0.06299947818010575,
+      "p_value": 0.03480482874104894,
+      "t_statistic": -2.113105400877832
+    },
+    {
+      "feature": "size_activity_interaction",
+      "error_mean": 0.196771256469735,
+      "overall_mean": 0.12176880133484781,
+      "difference": 0.0750024551348872,
+      "effect_size": 0.05890286814390058,
+      "p_value": 0.045865946025660735,
+      "t_statistic": 1.998768146627149
+    },
+    {
+      "feature": "rating_recent_vs_early",
+      "error_mean": 0.042404064996250816,
+      "overall_mean": -0.018092180150899834,
+      "difference": 0.06049624514715065,
+      "effect_size": 0.05681193050402195,
+      "p_value": 0.03765482457998542,
+      "t_statistic": 2.0809389702228027
+    },
+    {
+      "feature": "has_multiple_categories",
+      "error_mean": 0.03651006492141217,
+      "overall_mean": 0.00648683821945322,
+      "difference": 0.03002322670195895,
+      "effect_size": 0.03310423554044459,
+      "p_value": 4.2876363951631676e-08,
+      "t_statistic": 5.480125985953044
+    }
+  ],
+  "False Negative": [
+    {
+      "feature": "days_since_first_review",
+      "error_mean": -0.7524198886440059,
+      "overall_mean": 0.7464210174652168,
+      "difference": -1.4988409061092227,
+      "effect_size": -1.161077327120176,
+      "p_value": 0.0,
+      "t_statistic": -55.4631203410122
+    },
+    {
+      "feature": "review_recency_ratio",
+      "error_mean": -0.44850590725620354,
+      "overall_mean": 0.18373161109164743,
+      "difference": -0.632237518347851,
+      "effect_size": -0.829786281391022,
+      "p_value": 2.719737215080908e-75,
+      "t_statistic": -19.35063085594495
+    },
+    {
+      "feature": "category_avg_success_rate",
+      "error_mean": -0.4498045679655006,
+      "overall_mean": 0.07348129525121559,
+      "difference": -0.5232858632167162,
+      "effect_size": -0.5251811938713745,
+      "p_value": 2.2816654862362688e-90,
+      "t_statistic": -21.367614604884118
+    },
+    {
+      "feature": "category_encoded",
+      "error_mean": -0.44820488977647205,
+      "overall_mean": 0.07337568040988084,
+      "difference": -0.5215805701863528,
+      "effect_size": -0.5237483992298284,
+      "p_value": 6.248603463857991e-89,
+      "t_statistic": -21.17489154864322
+    },
+    {
+      "feature": "review_momentum",
+      "error_mean": -0.4704798714827359,
+      "overall_mean": -0.0665157262586851,
+      "difference": -0.4039641452240508,
+      "effect_size": -0.4389055041455208,
+      "p_value": 5.562295210605878e-20,
+      "t_statistic": -9.273164667018772
+    },
+    {
+      "feature": "momentum_credibility_interaction",
+      "error_mean": -0.3878110568156186,
+      "overall_mean": -0.05474899648281065,
+      "difference": -0.33306206033280794,
+      "effect_size": -0.421841936320457,
+      "p_value": 7.218690807352385e-19,
+      "t_statistic": -8.98129705388843
+    },
+    {
+      "feature": "avg_sentiment",
+      "error_mean": 0.23029528515267067,
+      "overall_mean": -0.16283125174023202,
+      "difference": 0.39312653689290267,
+      "effect_size": 0.38318119950862695,
+      "p_value": 3.4835688844186585e-83,
+      "t_statistic": 20.287791691721132
+    },
+    {
+      "feature": "review_frequency",
+      "error_mean": 0.4872798404391965,
+      "overall_mean": 0.0792108782787141,
+      "difference": 0.4080689621604824,
+      "effect_size": 0.3707403670578733,
+      "p_value": 1.0424823779258212e-56,
+      "t_statistic": 16.434701566222508
+    },
+    {
+      "feature": "pct_positive_reviews",
+      "error_mean": 0.19513064146580936,
+      "overall_mean": -0.1640236100232753,
+      "difference": 0.35915425148908464,
+      "effect_size": 0.3512441393078881,
+      "p_value": 5.406825758494085e-71,
+      "t_statistic": 18.56796131357832
+    },
+    {
+      "feature": "pct_negative_reviews",
+      "error_mean": -0.1945402676752328,
+      "overall_mean": 0.16124043581269007,
+      "difference": -0.3557807034879229,
+      "effect_size": -0.3490432049088492,
+      "p_value": 1.1264550003215381e-69,
+      "t_statistic": -18.376733203724807
+    },
+    {
+      "feature": "avg_reviewer_tenure",
+      "error_mean": -1.507899100252993,
+      "overall_mean": -1.2141566272304216,
+      "difference": -0.2937424730225713,
+      "effect_size": -0.3470937550278938,
+      "p_value": 2.160935533257782e-37,
+      "t_statistic": -13.084539990647738
+    },
+    {
+      "feature": "std_sentiment",
+      "error_mean": -0.061592333807173535,
+      "overall_mean": 0.22190646593107163,
+      "difference": -0.28349879973824516,
+      "effect_size": -0.31718866716314775,
+      "p_value": 2.118631371014657e-35,
+      "t_statistic": -12.693399617503706
+    },
+    {
+      "feature": "city_avg_success_rate",
+      "error_mean": -0.16625534467395975,
+      "overall_mean": 0.1174044532035059,
+      "difference": -0.28365979787746565,
+      "effect_size": -0.2868222061385117,
+      "p_value": 2.666322410159887e-38,
+      "t_statistic": -13.240774506650492
+    },
+    {
+      "feature": "location_density",
+      "error_mean": 0.1690549772086932,
+      "overall_mean": -0.0702570766852705,
+      "difference": 0.2393120538939637,
+      "effect_size": 0.2454987622696195,
+      "p_value": 1.6219193524104326e-17,
+      "t_statistic": 8.6097820024038
+    },
+    {
+      "feature": "city_encoded",
+      "error_mean": -0.11189133679682355,
+      "overall_mean": 0.11359544965551782,
+      "difference": -0.22548678645234138,
+      "effect_size": -0.2361312208948801,
+      "p_value": 1.843961274828244e-17,
+      "t_statistic": -8.59376631138524
+    },
+    {
+      "feature": "sentiment_recent_3m",
+      "error_mean": 0.12366475187189713,
+      "overall_mean": -0.11858391907348027,
+      "difference": 0.2422486709453774,
+      "effect_size": 0.22832691165509897,
+      "p_value": 4.3228495807756984e-26,
+      "t_statistic": 10.727148601701808
+    },
+    {
+      "feature": "total_useful_votes",
+      "error_mean": -0.07309131691691773,
+      "overall_mean": 0.2492809741725432,
+      "difference": -0.3223722910894609,
+      "effect_size": -0.21615158459180753,
+      "p_value": 4.498509874601036e-66,
+      "t_statistic": -17.645194535099776
+    },
+    {
+      "feature": "weighted_useful_votes",
+      "error_mean": -0.10513517487988236,
+      "overall_mean": 0.211150054217604,
+      "difference": -0.31628522909748635,
+      "effect_size": -0.2153914448282574,
+      "p_value": 5.803518997449317e-79,
+      "t_statistic": -19.359935956274043
+    },
+    {
+      "feature": "avg_review_stars",
+      "error_mean": 0.20491760275433998,
+      "overall_mean": -0.01529739612756937,
+      "difference": 0.22021499888190935,
+      "effect_size": 0.2122201679067868,
+      "p_value": 1.5246575651336586e-24,
+      "t_statistic": 10.370217102662162
+    },
+    {
+      "feature": "weighted_sentiment",
+      "error_mean": 0.2016077178414908,
+      "overall_mean": -0.005535549081720253,
+      "difference": 0.20714326692321106,
+      "effect_size": 0.202010867111243,
+      "p_value": 2.3222083268681364e-23,
+      "t_statistic": 10.090720928292166
+    },
+    {
+      "feature": "weighted_avg_rating",
+      "error_mean": 0.20160771784150158,
+      "overall_mean": -0.005535549081709456,
+      "difference": 0.20714326692321103,
+      "effect_size": 0.20201086711124297,
+      "p_value": 2.3222083268681364e-23,
+      "t_statistic": 10.090720928292166
+    },
+    {
+      "feature": "engagement_credibility_interaction",
+      "error_mean": -0.34262476958639765,
+      "overall_mean": -0.15085861080154708,
+      "difference": -0.19176615878485057,
+      "effect_size": -0.19649001867885493,
+      "p_value": 2.9915186639521605e-25,
+      "t_statistic": -10.527766354536471
+    },
+    {
+      "feature": "stars",
+      "error_mean": 0.23428769483890477,
+      "overall_mean": 0.02970686314549481,
+      "difference": 0.20458083169340996,
+      "effect_size": 0.19225911382383368,
+      "p_value": 2.334392446957652e-20,
+      "t_statistic": 9.352996727257
+    },
+    {
+      "feature": "total_reviews",
+      "error_mean": -0.011483790746209315,
+      "overall_mean": 0.3022583342731278,
+      "difference": -0.3137421250193371,
+      "effect_size": -0.1918817334483257,
+      "p_value": 3.7928862817970093e-66,
+      "t_statistic": -17.580385138288936
+    },
+    {
+      "feature": "sentiment_volatility",
+      "error_mean": -0.1244166409256208,
+      "overall_mean": 0.09138909542612966,
+      "difference": -0.21580573635175046,
+      "effect_size": -0.18829509175215556,
+      "p_value": 1.1027728402753175e-28,
+      "t_statistic": -11.279843566353271
+    },
+    {
+      "feature": "lifecycle_stage",
+      "error_mean": 0.03301254304364976,
+      "overall_mean": 0.20094531231087653,
+      "difference": -0.16793276926722678,
+      "effect_size": -0.18768765824653627,
+      "p_value": 9.690541389537932e-09,
+      "t_statistic": -5.765000738619607
+    },
+    {
+      "feature": "rating_recent_vs_early",
+      "error_mean": -0.2114894308088307,
+      "overall_mean": -0.018092180150899834,
+      "difference": -0.19339725065793087,
+      "effect_size": -0.181619059783329,
+      "p_value": 6.721219858414739e-08,
+      "t_statistic": -5.422771585386551
+    },
+    {
+      "feature": "category_competitiveness",
+      "error_mean": 0.11717202276414505,
+      "overall_mean": -0.04345905265183656,
+      "difference": 0.16063107541598162,
+      "effect_size": 0.1658721511941948,
+      "p_value": 1.3741470270344114e-08,
+      "t_statistic": 5.704140274528759
+    },
+    {
+      "feature": "reviews_recent_3m_count",
+      "error_mean": 0.07483088695771534,
+      "overall_mean": -0.061537467800407274,
+      "difference": 0.13636835475812262,
+      "effect_size": 0.15113982503483467,
+      "p_value": 7.00905931884998e-13,
+      "t_statistic": 7.22994165942512
+    },
+    {
+      "feature": "state_encoded",
+      "error_mean": -0.052145862930749964,
+      "overall_mean": 0.09594848333270577,
+      "difference": -0.14809434626345575,
+      "effect_size": -0.1473029748354231,
+      "p_value": 3.9049718037938574e-09,
+      "t_statistic": -5.917868877411455
+    },
+    {
+      "feature": "state_avg_success_rate",
+      "error_mean": -0.047866476778458324,
+      "overall_mean": 0.09419052647230997,
+      "difference": -0.14205700325076828,
+      "effect_size": -0.14357244930338808,
+      "p_value": 4.158332022207706e-09,
+      "t_statistic": -5.90713348962933
+    },
+    {
+      "feature": "avg_reviewer_credibility",
+      "error_mean": -0.5382981660509542,
+      "overall_mean": -0.43595714784676215,
+      "difference": -0.102341018204192,
+      "effect_size": -0.12429891805230546,
+      "p_value": 2.9993147229124046e-11,
+      "t_statistic": -6.68500429347682
+    },
+    {
+      "feature": "pct_high_credibility_reviewers",
+      "error_mean": -0.8745405914934626,
+      "overall_mean": -0.7755093332873332,
+      "difference": -0.09903125820612946,
+      "effect_size": -0.11346417083361345,
+      "p_value": 2.738490323664932e-06,
+      "t_statistic": -4.70461777830696
+    },
+    {
+      "feature": "avg_useful_per_review",
+      "error_mean": -0.40216897404974633,
+      "overall_mean": -0.30736461236669266,
+      "difference": -0.09480436168305367,
+      "effect_size": -0.10959195053326079,
+      "p_value": 1.4628295894646266e-08,
+      "t_statistic": -5.690205026877756
+    },
+    {
+      "feature": "size_activity_interaction",
+      "error_mean": 0.2572771678523242,
+      "overall_mean": 0.12176880133484781,
+      "difference": 0.1355083665174764,
+      "effect_size": 0.10642093556830164,
+      "p_value": 1.9113165110889981e-13,
+      "t_statistic": 7.39888024632565
+    },
+    {
+      "feature": "avg_reviewer_experience",
+      "error_mean": -0.16120954080238362,
+      "overall_mean": -0.24171230832364826,
+      "difference": 0.08050276752126465,
+      "effect_size": 0.09800034549891823,
+      "p_value": 5.0224013336350655e-06,
+      "t_statistic": 4.5773029653853134
+    },
+    {
+      "feature": "avg_text_length",
+      "error_mean": -0.3018510507431079,
+      "overall_mean": -0.22410651560448192,
+      "difference": -0.077744535138626,
+      "effect_size": -0.09485768090059712,
+      "p_value": 1.5573667896204466e-05,
+      "t_statistic": -4.331972236032766
+    },
+    {
+      "feature": "rating_trend_3m",
+      "error_mean": -0.1705985171079217,
+      "overall_mean": -0.06355412983754508,
+      "difference": -0.10704438727037663,
+      "effect_size": -0.09292590720668531,
+      "p_value": 0.00012366839092789383,
+      "t_statistic": -3.847193614071372
+    },
+    {
+      "feature": "std_review_stars",
+      "error_mean": 0.1484554419594296,
+      "overall_mean": 0.23100085405712503,
+      "difference": -0.08254541209769542,
+      "effect_size": -0.08790166130537282,
+      "p_value": 1.680996998675979e-05,
+      "t_statistic": -4.3146659268006955
+    },
+    {
+      "feature": "trend_quality_interaction",
+      "error_mean": -0.11122209277326754,
+      "overall_mean": -0.017131221820877358,
+      "difference": -0.09409087095239019,
+      "effect_size": -0.08497811133695994,
+      "p_value": 0.001839376547097524,
+      "t_statistic": -3.119809623960855
+    },
+    {
+      "feature": "rating_recent_vs_all",
+      "error_mean": -0.10510889615224149,
+      "overall_mean": -0.01387376489530201,
+      "difference": -0.09123513125693948,
+      "effect_size": -0.08384024960519773,
+      "p_value": 0.001448266859448749,
+      "t_statistic": -3.189923272613539
+    },
+    {
+      "feature": "std_reviewer_credibility",
+      "error_mean": -0.08936852156400707,
+      "overall_mean": -0.006620149183604664,
+      "difference": -0.0827483723804024,
+      "effect_size": -0.08357265273572127,
+      "p_value": 5.115516820840435e-06,
+      "t_statistic": -4.572566911746778
+    },
+    {
+      "feature": "pct_neutral_reviews",
+      "error_mean": -0.03418008016989628,
+      "overall_mean": 0.03914480060047184,
+      "difference": -0.07332488077036811,
+      "effect_size": -0.08268122273025054,
+      "p_value": 0.0001456569593966299,
+      "t_statistic": -3.806306003861389
+    },
+    {
+      "feature": "review_diversity",
+      "error_mean": -0.011635742323961336,
+      "overall_mean": -0.07855282067915678,
+      "difference": 0.06691707835519545,
+      "effect_size": 0.0740195683785874,
+      "p_value": 0.0015628532806468561,
+      "t_statistic": 3.167576563323357
+    },
+    {
+      "feature": "sentiment_recent_vs_all",
+      "error_mean": -0.06269419811932074,
+      "overall_mean": -0.00557867598547013,
+      "difference": -0.05711552213385061,
+      "effect_size": -0.05477952899182291,
+      "p_value": 0.031249112674114062,
+      "t_statistic": -2.155606121578326
+    },
+    {
+      "feature": "price_range",
+      "error_mean": 0.08472581655283375,
+      "overall_mean": 0.03935077626301963,
+      "difference": 0.045375040289814116,
+      "effect_size": 0.049125875073998126,
+      "p_value": 0.01860072930280335,
+      "t_statistic": 2.355492861563186
+    }
+  ]
+}

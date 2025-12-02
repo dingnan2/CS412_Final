@@ -1,0 +1,642 @@
+[
+  {
+    "case_type": "FP",
+    "business_id": "nVI9wI9ujmrutJRMgHKSIg",
+    "business_name": "Fiesta Maya Mexican Grill",
+    "city": "Springfield",
+    "state": "PA",
+    "categories": "Mexican, Restaurants",
+    "prediction_year": 2019,
+    "true_label": 0,
+    "predicted_label": 1,
+    "prediction_probability": 0.5003551532900997,
+    "top_features": {
+      "review_count": {
+        "value": 80.5,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": 1.266806708343267,
+        "direction": "higher"
+      },
+      "size_activity_interaction": {
+        "value": 0.4589999591438378,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": 0.7655520820988506,
+        "direction": "higher"
+      },
+      "review_frequency": {
+        "value": 0.094298245614035,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": 0.6623881120644359,
+        "direction": "higher"
+      },
+      "engagement_recent_vs_all": {
+        "value": 1.757751937984496,
+        "importance": 0.0068884488881913244,
+        "deviation_from_reference": 4.743604549865306,
+        "direction": "higher"
+      },
+      "city_avg_success_rate": {
+        "value": 0.8097826086956522,
+        "importance": 0.030638381903337727,
+        "deviation_from_reference": 0.7953058866485612,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.6839729119638827,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": -0.8180389262142249,
+        "direction": "lower"
+      },
+      "category_encoded": {
+        "value": 0.691402110951715,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": -0.7511480581567486,
+        "direction": "lower"
+      },
+      "category_count": {
+        "value": 2.0,
+        "importance": 0.014294275875485521,
+        "deviation_from_reference": -1.2145805871130704,
+        "direction": "lower"
+      },
+      "review_recency_ratio": {
+        "value": 0.9897660818713452,
+        "importance": 0.01971571041531948,
+        "deviation_from_reference": 0.8565190276033139,
+        "direction": "higher"
+      },
+      "location_density": {
+        "value": 368.0,
+        "importance": 0.016708448923032835,
+        "deviation_from_reference": -1.0000950710644387,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 129,
+      "avg_review_stars": 4.271317829457364,
+      "std_review_stars": 1.1092786083792254,
+      "days_since_first_review": 1368,
+      "review_recency_ratio": 0.9897660818713452,
+      "review_frequency": 0.094298245614035,
+      "total_useful_votes": 63.5,
+      "avg_useful_per_review": 0.4922480620155038,
+      "avg_sentiment": 0.8239806201550387,
+      "std_sentiment": 0.3737503967647204,
+      "sentiment_volatility": 0.4481523763648602,
+      "pct_positive_reviews": 0.9457364341085271,
+      "pct_negative_reviews": 0.0465116279069767,
+      "pct_neutral_reviews": 0.0077519379844961,
+      "avg_text_length": 478.2403100775194,
+      "std_text_length": 478.348252613301,
+      "sentiment_recent_3m": 0.9597,
+      "avg_reviewer_credibility": 0.7760694753907637,
+      "std_reviewer_credibility": 0.55727300569982,
+      "weighted_avg_rating": 4.1243203013477725,
+      "weighted_sentiment": 0.5621601506738858,
+      "pct_high_credibility_reviewers": 0.4341085271317829,
+      "weighted_useful_votes": 89.56644527038196,
+      "avg_reviewer_tenure": 10.870288886715992,
+      "avg_reviewer_experience": 73.23809523809524,
+      "review_diversity": 0.9767441860465116,
+      "rating_recent_vs_all": -0.2713178294573639,
+      "reviews_recent_3m_count": 2,
+      "engagement_recent_vs_all": 1.757751937984496,
+      "sentiment_recent_vs_all": 0.1357193798449613,
+      "rating_recent_vs_early": -0.0999999999999996,
+      "review_momentum": -0.1307582886530255,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": 0.0423076923076921,
+      "rating_credibility_interaction": 3.314839387134192,
+      "momentum_credibility_interaction": -0.1014775164779475,
+      "size_activity_interaction": 0.4589999591438378,
+      "trend_quality_interaction": -1.158884682410911,
+      "engagement_credibility_interaction": 3.2336216943647447,
+      "stars": 4.5,
+      "review_count": 80.5,
+      "category_encoded": 0.691402110951715,
+      "state_encoded": 0.764445701252652,
+      "city_encoded": 0.8055846507478648,
+      "has_multiple_categories": 1.0,
+      "category_count": 2.0,
+      "price_range": 1.0,
+      "category_avg_success_rate": 0.6839729119638827,
+      "state_avg_success_rate": 0.7643652979469204,
+      "city_avg_success_rate": 0.8097826086956522,
+      "category_competitiveness": 6.0,
+      "location_density": 368.0
+    }
+  },
+  {
+    "case_type": "FP",
+    "business_id": "8E33uSyFgG2DTM3eBRbNEQ",
+    "business_name": "Green Feet Brewing",
+    "city": "Tucson",
+    "state": "AZ",
+    "categories": "Breweries, Food",
+    "prediction_year": 2019,
+    "true_label": 0,
+    "predicted_label": 1,
+    "prediction_probability": 0.5004132176195872,
+    "top_features": {
+      "review_count": {
+        "value": 22.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -0.8092011804565791,
+        "direction": "lower"
+      },
+      "avg_reviewer_tenure": {
+        "value": 12.210238120969777,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": 0.8612505035931759,
+        "direction": "higher"
+      },
+      "review_frequency": {
+        "value": 0.0145038167938931,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": -0.6266385956019247,
+        "direction": "lower"
+      },
+      "category_competitiveness": {
+        "value": 4892.0,
+        "importance": 0.020406381514147826,
+        "deviation_from_reference": 1.5797414969552641,
+        "direction": "higher"
+      },
+      "size_activity_interaction": {
+        "value": 0.04344955205918,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.5320932278044588,
+        "direction": "lower"
+      },
+      "weighted_avg_rating": {
+        "value": 4.579853836962064,
+        "importance": 0.023611738785174603,
+        "deviation_from_reference": 1.070587916667359,
+        "direction": "higher"
+      },
+      "weighted_sentiment": {
+        "value": 0.7899269184810315,
+        "importance": 0.022740326862537904,
+        "deviation_from_reference": 1.070587916667358,
+        "direction": "higher"
+      },
+      "city_avg_success_rate": {
+        "value": 0.8082907570831398,
+        "importance": 0.030638381903337727,
+        "deviation_from_reference": 0.7691841758620583,
+        "direction": "higher"
+      },
+      "std_text_length": {
+        "value": 184.2630451449617,
+        "importance": 0.02161568583388414,
+        "deviation_from_reference": -1.0707277507382746,
+        "direction": "lower"
+      },
+      "category_encoded": {
+        "value": 0.8072802498727394,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 0.8801501567041035,
+        "direction": "higher"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 19,
+      "avg_review_stars": 4.473684210526316,
+      "std_review_stars": 0.8411910241920599,
+      "days_since_first_review": 1310,
+      "review_recency_ratio": 0.9725190839694656,
+      "review_frequency": 0.0145038167938931,
+      "total_useful_votes": 12.5,
+      "avg_useful_per_review": 0.6578947368421053,
+      "avg_sentiment": 0.7911052631578948,
+      "std_sentiment": 0.4214875917180707,
+      "sentiment_volatility": 0.5261325959295279,
+      "pct_positive_reviews": 0.9473684210526316,
+      "pct_negative_reviews": 0.0526315789473684,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 348.1578947368421,
+      "std_text_length": 184.2630451449617,
+      "sentiment_recent_3m": 0.9969,
+      "avg_reviewer_credibility": 0.9344499806126148,
+      "std_reviewer_credibility": 0.4312753476039438,
+      "weighted_avg_rating": 4.579853836962064,
+      "weighted_sentiment": 0.7899269184810315,
+      "pct_high_credibility_reviewers": 0.6842105263157895,
+      "weighted_useful_votes": 15.85126967171343,
+      "avg_reviewer_tenure": 12.210238120969777,
+      "avg_reviewer_experience": 101.10526315789474,
+      "review_diversity": 1.0,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": -0.0367647058823528,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": -0.3666666666666671,
+      "rating_credibility_interaction": 4.180434123793277,
+      "momentum_credibility_interaction": -0.0343547786989931,
+      "size_activity_interaction": 0.04344955205918,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 2.432083326104157,
+      "stars": 4.5,
+      "review_count": 22.0,
+      "category_encoded": 0.8072802498727394,
+      "state_encoded": 0.8119059647307569,
+      "city_encoded": 0.8080823710456841,
+      "has_multiple_categories": 1.0,
+      "category_count": 2.0,
+      "price_range": 1.0,
+      "category_avg_success_rate": 0.8073022052608663,
+      "state_avg_success_rate": 0.8121415431230387,
+      "city_avg_success_rate": 0.8082907570831398,
+      "category_competitiveness": 4892.0,
+      "location_density": 8612.0
+    }
+  },
+  {
+    "case_type": "FP",
+    "business_id": "Zw5ziGzTpiiU2B9855boUg",
+    "business_name": "Crackers Comedy Club",
+    "city": "Indianapolis",
+    "state": "IN",
+    "categories": "Comedy Clubs, Nightlife",
+    "prediction_year": 2020,
+    "true_label": 0,
+    "predicted_label": 1,
+    "prediction_probability": 0.5006749502707286,
+    "top_features": {
+      "review_count": {
+        "value": 80.5,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": 1.266806708343267,
+        "direction": "higher"
+      },
+      "days_since_first_review": {
+        "value": 4540,
+        "importance": 0.0299740610482687,
+        "deviation_from_reference": 2.7218494712732557,
+        "direction": "higher"
+      },
+      "avg_reviewer_tenure": {
+        "value": 11.8554783932815,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": 0.6099296702128882,
+        "direction": "higher"
+      },
+      "review_frequency": {
+        "value": 0.0207048458149779,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": -0.5264650353498735,
+        "direction": "lower"
+      },
+      "category_competitiveness": {
+        "value": 3900.0,
+        "importance": 0.020406381514147826,
+        "deviation_from_reference": 1.1222768088153805,
+        "direction": "higher"
+      },
+      "category_encoded": {
+        "value": 0.8072802498727394,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": 0.8801501567041035,
+        "direction": "higher"
+      },
+      "category_avg_success_rate": {
+        "value": 0.8073022052608663,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": 0.8745571223923847,
+        "direction": "higher"
+      },
+      "size_activity_interaction": {
+        "value": 0.0942873189009803,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.37334139268766503,
+        "direction": "lower"
+      },
+      "avg_useful_per_review": {
+        "value": 1.3085106382978724,
+        "importance": 0.02558014130311138,
+        "deviation_from_reference": 0.6882847861512839,
+        "direction": "higher"
+      },
+      "category_count": {
+        "value": 2.0,
+        "importance": 0.014294275875485521,
+        "deviation_from_reference": -1.2145805871130704,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 94,
+      "avg_review_stars": 3.2127659574468086,
+      "std_review_stars": 1.5441345171327157,
+      "days_since_first_review": 4540,
+      "review_recency_ratio": 0.9887665198237884,
+      "review_frequency": 0.0207048458149779,
+      "total_useful_votes": 123.0,
+      "avg_useful_per_review": 1.3085106382978724,
+      "avg_sentiment": 0.6831702127659574,
+      "std_sentiment": 0.5371782139856436,
+      "sentiment_volatility": 0.7749585947182311,
+      "pct_positive_reviews": 0.8617021276595744,
+      "pct_negative_reviews": 0.1382978723404255,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 682.3297872340426,
+      "std_text_length": 507.4810003423431,
+      "sentiment_recent_3m": 0.9931,
+      "avg_reviewer_credibility": 0.9272412755199164,
+      "std_reviewer_credibility": 0.4652952058837801,
+      "weighted_avg_rating": 3.206369213973318,
+      "weighted_sentiment": 0.1031846069866594,
+      "pct_high_credibility_reviewers": 0.6595744680851063,
+      "weighted_useful_votes": 129.4076349556838,
+      "avg_reviewer_tenure": 11.8554783932815,
+      "avg_reviewer_experience": 138.561797752809,
+      "review_diversity": 0.946808510638298,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": 0.0108878333942272,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": -0.3404255319148936,
+      "rating_credibility_interaction": 2.979009204329944,
+      "momentum_credibility_interaction": 0.0100956485241116,
+      "size_activity_interaction": 0.0942873189009803,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 4.469564027256753,
+      "stars": 3.0,
+      "review_count": 80.5,
+      "category_encoded": 0.8072802498727394,
+      "state_encoded": 0.7909358520140187,
+      "city_encoded": 0.7772570028431103,
+      "has_multiple_categories": 1.0,
+      "category_count": 2.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.8073022052608663,
+      "state_avg_success_rate": 0.7909433962264151,
+      "city_avg_success_rate": 0.7770763187429854,
+      "category_competitiveness": 3900.0,
+      "location_density": 7128.0
+    }
+  },
+  {
+    "case_type": "FP",
+    "business_id": "ZDz-J0khVGbG2iSThdbAsA",
+    "business_name": "Massage Envy - Plymouth Meeting",
+    "city": "Plymouth Meeting",
+    "state": "PA",
+    "categories": "Massage, Health & Medical, Massage Therapy, Day Spas, Beauty & Spas, Skin Care",
+    "prediction_year": 2019,
+    "true_label": 0,
+    "predicted_label": 1,
+    "prediction_probability": 0.5009255481102641,
+    "top_features": {
+      "review_count": {
+        "value": 26.0,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": -0.6672519231027434,
+        "direction": "lower"
+      },
+      "avg_reviewer_tenure": {
+        "value": 12.273679776759858,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": 0.9061941895861882,
+        "direction": "higher"
+      },
+      "review_frequency": {
+        "value": 0.0095642933049946,
+        "importance": 0.051538200258922556,
+        "deviation_from_reference": -0.706433360656102,
+        "direction": "lower"
+      },
+      "weighted_avg_rating": {
+        "value": 2.3455800628418126,
+        "importance": 0.023611738785174603,
+        "deviation_from_reference": -1.4184408858792752,
+        "direction": "lower"
+      },
+      "weighted_sentiment": {
+        "value": -0.327209968579094,
+        "importance": 0.022740326862537904,
+        "deviation_from_reference": -1.4184408858792759,
+        "direction": "lower"
+      },
+      "days_since_first_review": {
+        "value": 2823,
+        "importance": 0.0299740610482687,
+        "deviation_from_reference": 1.0474027209823484,
+        "direction": "higher"
+      },
+      "avg_review_stars": {
+        "value": 2.3703703703703702,
+        "importance": 0.021218207322084105,
+        "deviation_from_reference": -1.4183999374307896,
+        "direction": "lower"
+      },
+      "size_activity_interaction": {
+        "value": 0.0318701812875418,
+        "importance": 0.05122716612136507,
+        "deviation_from_reference": -0.5682522976002601,
+        "direction": "lower"
+      },
+      "avg_text_length": {
+        "value": 817.7777777777778,
+        "importance": 0.022760618096312146,
+        "deviation_from_reference": 1.1195215194354553,
+        "direction": "higher"
+      },
+      "avg_useful_per_review": {
+        "value": 1.5185185185185186,
+        "importance": 0.02558014130311138,
+        "deviation_from_reference": 0.993717801869989,
+        "direction": "higher"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 27,
+      "avg_review_stars": 2.3703703703703702,
+      "std_review_stars": 1.4714761857543484,
+      "days_since_first_review": 2823,
+      "review_recency_ratio": 0.9383634431455898,
+      "review_frequency": 0.0095642933049946,
+      "total_useful_votes": 41.0,
+      "avg_useful_per_review": 1.5185185185185186,
+      "avg_sentiment": 0.1905851851851851,
+      "std_sentiment": 0.7290129677776168,
+      "sentiment_volatility": 3.6344307636906192,
+      "pct_positive_reviews": 0.5925925925925926,
+      "pct_negative_reviews": 0.4074074074074074,
+      "pct_neutral_reviews": 0.0,
+      "avg_text_length": 817.7777777777778,
+      "std_text_length": 625.865997569432,
+      "sentiment_recent_3m": 0.1905851851851851,
+      "avg_reviewer_credibility": 1.128820662749057,
+      "std_reviewer_credibility": 1.388575737887238,
+      "weighted_avg_rating": 2.3455800628418126,
+      "weighted_sentiment": -0.327209968579094,
+      "pct_high_credibility_reviewers": 0.5555555555555556,
+      "weighted_useful_votes": 58.706101439090375,
+      "avg_reviewer_tenure": 12.273679776759858,
+      "avg_reviewer_experience": 29.65384615384616,
+      "review_diversity": 0.9629629629629628,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": -0.0168831168831168,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": 0.2692307692307691,
+      "rating_credibility_interaction": 2.675723052442209,
+      "momentum_credibility_interaction": -0.0190580111892697,
+      "size_activity_interaction": 0.0318701812875418,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 4.219158695647646,
+      "stars": 2.5,
+      "review_count": 26.0,
+      "category_encoded": 0.8072802498727394,
+      "state_encoded": 0.764445701252652,
+      "city_encoded": 0.8181550191932635,
+      "has_multiple_categories": 1.0,
+      "category_count": 6.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.8073022052608663,
+      "state_avg_success_rate": 0.7643652979469204,
+      "city_avg_success_rate": 0.8115183246073299,
+      "category_competitiveness": 122.0,
+      "location_density": 191.0
+    }
+  },
+  {
+    "case_type": "FP",
+    "business_id": "K_9S5UXwzBlZR2Ux_RK9dA",
+    "business_name": "Thai Sa-Moot",
+    "city": "Tampa",
+    "state": "FL",
+    "categories": "Restaurants, Thai",
+    "prediction_year": 2020,
+    "true_label": 0,
+    "predicted_label": 1,
+    "prediction_probability": 0.501517108210787,
+    "top_features": {
+      "review_count": {
+        "value": 80.5,
+        "importance": 0.10271850332115508,
+        "deviation_from_reference": 1.266806708343267,
+        "direction": "higher"
+      },
+      "std_reviewer_credibility": {
+        "value": 4.987413492712247,
+        "importance": 0.018768767119123207,
+        "deviation_from_reference": 6.3508536910586555,
+        "direction": "higher"
+      },
+      "weighted_useful_votes": {
+        "value": 337.73686961517404,
+        "importance": 0.01953375259467038,
+        "deviation_from_reference": 2.3375189973046333,
+        "direction": "higher"
+      },
+      "engagement_credibility_interaction": {
+        "value": 6.305682096856856,
+        "importance": 0.019683179983219588,
+        "deviation_from_reference": 1.9015741947950953,
+        "direction": "higher"
+      },
+      "category_encoded": {
+        "value": 0.6527859706089071,
+        "importance": 0.025596303095351255,
+        "deviation_from_reference": -1.2947746765387707,
+        "direction": "lower"
+      },
+      "category_avg_success_rate": {
+        "value": 0.6518778101031473,
+        "importance": 0.024068470883607834,
+        "deviation_from_reference": -1.2585185652103887,
+        "direction": "lower"
+      },
+      "rating_credibility_interaction": {
+        "value": 5.50662953567232,
+        "importance": 0.018915149666825073,
+        "deviation_from_reference": 1.3123656524605525,
+        "direction": "higher"
+      },
+      "avg_reviewer_tenure": {
+        "value": 10.43876315334221,
+        "importance": 0.058619534533560023,
+        "deviation_from_reference": -0.39370751567691786,
+        "direction": "lower"
+      },
+      "avg_reviewer_credibility": {
+        "value": 1.4030590323767829,
+        "importance": 0.01766332864402222,
+        "deviation_from_reference": 1.2883264160342267,
+        "direction": "higher"
+      },
+      "category_count": {
+        "value": 2.0,
+        "importance": 0.014294275875485521,
+        "deviation_from_reference": -1.2145805871130704,
+        "direction": "lower"
+      }
+    },
+    "feature_values": {
+      "total_reviews": 93,
+      "avg_review_stars": 3.924731182795699,
+      "std_review_stars": 1.4236859627144285,
+      "days_since_first_review": 1592,
+      "review_recency_ratio": 0.9133165829145728,
+      "review_frequency": 0.0584170854271356,
+      "total_useful_votes": 88.5,
+      "avg_useful_per_review": 0.9516129032258064,
+      "avg_sentiment": 0.6649838709677419,
+      "std_sentiment": 0.5063436982007342,
+      "sentiment_volatility": 0.7501567370413994,
+      "pct_positive_reviews": 0.8494623655913979,
+      "pct_negative_reviews": 0.1290322580645161,
+      "pct_neutral_reviews": 0.021505376344086,
+      "avg_text_length": 438.3440860215054,
+      "std_text_length": 395.55415040912544,
+      "sentiment_recent_3m": 0.6649838709677419,
+      "avg_reviewer_credibility": 1.4030590323767829,
+      "std_reviewer_credibility": 4.987413492712247,
+      "weighted_avg_rating": 3.442540375684797,
+      "weighted_sentiment": 0.2212701878423992,
+      "pct_high_credibility_reviewers": 0.3978494623655914,
+      "weighted_useful_votes": 337.73686961517404,
+      "avg_reviewer_tenure": 10.43876315334221,
+      "avg_reviewer_experience": 68.20879120879121,
+      "review_diversity": 0.978494623655914,
+      "rating_recent_vs_all": 0.0,
+      "reviews_recent_3m_count": 0,
+      "engagement_recent_vs_all": 0.0,
+      "sentiment_recent_vs_all": 0.0,
+      "rating_recent_vs_early": 0.0,
+      "review_momentum": -0.1135609293504029,
+      "lifecycle_stage": 3,
+      "rating_trend_3m": -0.5360777058279376,
+      "rating_credibility_interaction": 5.50662953567232,
+      "momentum_credibility_interaction": -0.1593326876501846,
+      "size_activity_interaction": 0.2654060394165266,
+      "trend_quality_interaction": 0.0,
+      "engagement_credibility_interaction": 6.305682096856856,
+      "stars": 4.0,
+      "review_count": 80.5,
+      "category_encoded": 0.6527859706089071,
+      "state_encoded": 0.8123762879509029,
+      "city_encoded": 0.791542020106036,
+      "has_multiple_categories": 1.0,
+      "category_count": 2.0,
+      "price_range": 2.0,
+      "category_avg_success_rate": 0.6518778101031473,
+      "state_avg_success_rate": 0.8124668975351396,
+      "city_avg_success_rate": 0.7915585946710681,
+      "category_competitiveness": 841.0,
+      "location_density": 8482.0
+    }
+  }
+]
