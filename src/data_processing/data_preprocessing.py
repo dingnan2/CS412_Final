@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional, Dict
 import os
 import warnings
+from datetime import datetime
 
 warnings.filterwarnings('ignore')
 
@@ -161,7 +162,10 @@ class DataCleaner:
         })
         self.cleaning_summary["business"] = summary
         try:
-            with open(self.output_path / "cleaning_summary.json", 'w', encoding='utf-8') as f:
+            # Main summary location under src/data_processing for reporting/final aggregation
+            summary_path = Path("src/data_processing/cleaning_summary.json")
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(summary_path, 'w', encoding='utf-8') as f:
                 json.dump(self.cleaning_summary, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not write cleaning summary: {e}")
@@ -415,7 +419,9 @@ class DataCleaner:
             "rows_dropped_invalid_date": int(total_na_date),
         }
         try:
-            with open(self.output_path / "cleaning_summary.json", 'w', encoding='utf-8') as f:
+            summary_path = Path("src/data_processing/cleaning_summary.json")
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(summary_path, 'w', encoding='utf-8') as f:
                 json.dump(self.cleaning_summary, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not write cleaning summary: {e}")
@@ -576,11 +582,10 @@ class DataCleaner:
                 "duplicates_removed": int(total_dups_removed),
                 "rows_dropped_invalid_date": 0,
             }
-            try:
-                with open(self.output_path / "cleaning_summary.json", 'w', encoding='utf-8') as f:
-                    json.dump(self.cleaning_summary, f, indent=2)
-            except Exception as e:
-                logger.warning(f"Could not write cleaning summary: {e}")
+            summary_path = Path("src/data_processing/cleaning_summary.json")
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(summary_path, 'w', encoding='utf-8') as f:
+                json.dump(self.cleaning_summary, f, indent=2)
             return pd.read_csv(output_file, nrows=0)
 
         # If a small in-memory sample was loaded above
@@ -668,10 +673,240 @@ class DataCleaner:
         logger.info(f"\nSaved: {output_file}")
 
         return df
+    
 
+    def filter_low_quality_businesses(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Filter out low-quality businesses that have insufficient data for prediction.
+        
+        Criteria:
+        - Minimum 5 reviews (changed from 3 to ensure quality)
+        - Remove suspicious patterns (e.g., very few reviews but perfect rating)
+        
+        Args:
+            df: Business dataframe
+            
+        Returns:
+            Filtered dataframe
+        """
+        logger.info("="*70)
+        logger.info("FILTERING LOW-QUALITY BUSINESSES")
+        logger.info("="*70)
+        
+        initial_count = len(df)
+        
+        # Filter 1: Minimum review count
+        min_reviews = 5
+        df = df[df['review_count'] >= min_reviews]
+        after_min_reviews = len(df)
+        removed_min_reviews = initial_count - after_min_reviews
+        logger.info(f"Removed {removed_min_reviews:,} businesses with < {min_reviews} reviews")
+        
+        # Filter 2: Suspicious patterns (few reviews + perfect rating)
+        # These might be fake or biased entries
+        suspicious = (df['review_count'] < 10) & (df['stars'] == 5.0)
+        df = df[~suspicious]
+        after_suspicious = len(df)
+        removed_suspicious = after_min_reviews - after_suspicious
+        logger.info(f"Removed {removed_suspicious:,} businesses with suspicious patterns")
+        
+        # Filter 3: Businesses with invalid categories
+        df = df[df['categories'].str.len() > 0]
+        after_categories = len(df)
+        removed_categories = after_suspicious - after_categories
+        logger.info(f"Removed {removed_categories:,} businesses with no categories")
+        
+        total_removed = initial_count - len(df)
+        logger.info(f"\nTotal removed: {total_removed:,} ({total_removed/initial_count*100:.2f}%)")
+        logger.info(f"Final business count: {len(df):,}")
+        
+        # Persist quality filter statistics into cleaning_summary for reporting
+        business_summary = self.cleaning_summary.get("business", {})
+        business_summary["quality_filter"] = {
+            "min_reviews_removed": int(removed_min_reviews),
+            "suspicious_removed": int(removed_suspicious),
+            "no_category_removed": int(removed_categories),
+            "final_after_quality_filter": int(len(df)),
+        }
+        self.cleaning_summary["business"] = business_summary
+        try:
+            summary_path = Path("src/data_processing/cleaning_summary.json")
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(summary_path, 'w', encoding='utf-8') as f:
+                json.dump(self.cleaning_summary, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Could not write cleaning summary (quality_filter): {e}")
 
+        return df
+
+    def generate_preprocessing_report(self) -> None:
+        """
+        Generate a comprehensive markdown report summarizing preprocessing results.
+        
+        Outputs:
+            - src/data_processing/preprocessing_report.md
+        """
+        logger.info("="*70)
+        logger.info("GENERATING PREPROCESSING REPORT")
+        logger.info("="*70)
+        
+        report_path = Path("src/data_processing/preprocessing_report.md")
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Load summary data (main copy under src/data_processing)
+        summary_file = Path("src/data_processing/cleaning_summary.json")
+        if not summary_file.exists():
+            logger.warning("cleaning_summary.json not found, skipping report generation")
+            return
+        
+        with open(summary_file, 'r') as f:
+            summary = json.load(f)
+        
+        # Generate report content
+        report_lines = []
+        report_lines.append("# Data Preprocessing Report")
+        report_lines.append("")
+        report_lines.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report_lines.append("")
+        report_lines.append("---")
+        report_lines.append("")
+        
+        # Executive Summary
+        report_lines.append("## Executive Summary")
+        report_lines.append("")
+        report_lines.append("This report documents the data preprocessing pipeline for the Yelp Business Success Prediction project.")
+        report_lines.append("The preprocessing phase includes data cleaning, quality filtering, and preparation for feature engineering.")
+        report_lines.append("")
+        
+        # Business Data
+        if 'business' in summary:
+            bus = summary['business']
+            qf = bus.get('quality_filter', {})
+            final_after_qf = qf.get('final_after_quality_filter', bus.get('final_rows', bus.get('input_rows', 0)))
+            report_lines.append("## 1. Business Data")
+            report_lines.append("")
+            report_lines.append("### Overview")
+            report_lines.append("")
+            report_lines.append(f"- **Input rows**: {bus.get('input_rows', 'N/A'):,}")
+            report_lines.append(f"- **Final rows**: {final_after_qf:,}")
+            report_lines.append(f"- **Data retention**: {final_after_qf/max(bus.get('input_rows', 1), 1)*100:.2f}%")
+            report_lines.append("")
+            
+            report_lines.append("### Cleaning Operations")
+            report_lines.append("")
+            report_lines.append(f"1. **Duplicates removed**: {bus.get('duplicates_removed', 0):,}")
+            report_lines.append(f"2. **Missing values filled**:")
+            report_lines.append(f"   - Stars: {bus.get('stars_filled', 0):,}")
+            report_lines.append(f"   - Review count: {bus.get('review_count_filled', 0):,}")
+            report_lines.append(f"3. **Columns removed**: {bus.get('columns_removed', 0)}")
+            report_lines.append(f"4. **Outliers handled**: {bus.get('outliers_handled', 0):,}")
+            report_lines.append("")
+            
+            # Quality filtering
+            if 'quality_filter' in bus:
+                qf = bus['quality_filter']
+                report_lines.append("### Quality Filtering")
+                report_lines.append("")
+                report_lines.append(f"- **Minimum reviews filter**: {qf.get('min_reviews_removed', 0):,} businesses")
+                report_lines.append(f"- **Suspicious patterns**: {qf.get('suspicious_removed', 0):,} businesses")
+                report_lines.append(f"- **Invalid categories**: {qf.get('no_category_removed', 0):,} businesses")
+                report_lines.append("")
+        
+        # Review Data
+        if 'review' in summary:
+            rev = summary['review']
+            report_lines.append("## 2. Review Data")
+            report_lines.append("")
+            report_lines.append("### Overview")
+            report_lines.append("")
+            report_lines.append(f"- **Input rows**: {rev.get('input_rows', 'N/A'):,}")
+            report_lines.append(f"- **Final rows**: {rev.get('final_rows', 'N/A'):,}")
+            report_lines.append(f"- **Data retention**: {rev.get('final_rows', 0)/max(rev.get('input_rows', 1), 1)*100:.2f}%")
+            report_lines.append("")
+            
+            report_lines.append("### Cleaning Operations")
+            report_lines.append("")
+            report_lines.append(f"1. **Duplicates removed**: {rev.get('duplicates_removed', 0):,}")
+            report_lines.append(f"2. **Invalid dates dropped**: {rev.get('rows_dropped_invalid_date', 0):,}")
+            report_lines.append(f"3. **Feature engineering**: Created `funny_cool` and `text_length`")
+            report_lines.append("")
+        
+        # User Data
+        if 'user' in summary:
+            usr = summary['user']
+            report_lines.append("## 3. User Data")
+            report_lines.append("")
+            report_lines.append("### Overview")
+            report_lines.append("")
+            report_lines.append(f"- **Input rows**: {usr.get('input_rows', 'N/A'):,}")
+            report_lines.append(f"- **Final rows**: {usr.get('final_rows', 'N/A'):,}")
+            report_lines.append(f"- **Data retention**: {usr.get('final_rows', 0)/max(usr.get('input_rows', 1), 1)*100:.2f}%")
+            report_lines.append("")
+            
+            report_lines.append("### Cleaning Operations")
+            report_lines.append("")
+            report_lines.append(f"1. **Duplicates removed**: {usr.get('duplicates_removed', 0):,}")
+            report_lines.append(f"2. **Feature engineering**: Created `funny_cool` and `user_tenure_years`")
+            report_lines.append("")
+        
+        # Data Quality Summary
+        report_lines.append("## 4. Data Quality Summary")
+        report_lines.append("")
+        report_lines.append("### Missing Values")
+        report_lines.append("")
+        report_lines.append("All datasets have been processed to contain **zero missing values** through:")
+        report_lines.append("- Median imputation for numerical features")
+        report_lines.append("- Default values for categorical features")
+        report_lines.append("- Dropping rows with invalid dates")
+        report_lines.append("")
+        
+        report_lines.append("### Outlier Handling")
+        report_lines.append("")
+        report_lines.append("Used IQR (Interquartile Range) method with 1.5×IQR threshold:")
+        report_lines.append("- Outliers clipped to boundary values (not removed)")
+        report_lines.append("- Preserves data volume while reducing extreme values")
+        report_lines.append("")
+        
+        # Output Files
+        report_lines.append("## 5. Output Files")
+        report_lines.append("")
+        report_lines.append("### Processed Datasets")
+        report_lines.append("")
+        report_lines.append("```")
+        report_lines.append("data/processed/")
+        report_lines.append("├── business_clean.csv")
+        report_lines.append("├── review_clean.csv")
+        report_lines.append("├── user_clean.csv")
+        report_lines.append("└── cleaning_summary.json")
+        report_lines.append("```")
+        report_lines.append("")
+        
+        # Next Steps
+        report_lines.append("## 6. Next Steps")
+        report_lines.append("")
+        report_lines.append("1. **Exploratory Data Analysis (EDA)**")
+        report_lines.append("   - Analyze data distributions")
+        report_lines.append("   - Identify patterns and correlations")
+        report_lines.append("   - Generate visualizations")
+        report_lines.append("")
+        report_lines.append("2. **Feature Engineering**")
+        report_lines.append("   - Extract temporal features")
+        report_lines.append("   - Calculate user credibility weights")
+        report_lines.append("   - Generate aggregation features")
+        report_lines.append("")
+        report_lines.append("---")
+        report_lines.append("")
+        report_lines.append("*Report generated by CS 412 Research Project preprocessing pipeline*")
+        
+        # Write report
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(report_lines))
+        
+        logger.info(f"[OK] Saved preprocessing report: {report_path}")
+
+    
 def main():
-    """Run Phase 1: Data Cleaning only."""
+    """Run Phase 1: Data Cleaning with quality filtering and report generation."""
     print("="*70)
     print("CS 412 RESEARCH PROJECT - DATA PREPROCESSING")
     print("Business Success Prediction using Yelp Dataset")
@@ -697,17 +932,36 @@ def main():
 
     cleaner = DataCleaner()
 
-    print("\n1/3 Cleaning business data...")
+    print("\n1/4 Cleaning business data...")
     business_df = cleaner.clean_business_data(sample_size)
 
-    print("\n2/3 Cleaning review data...")
+    print("\n2/4 Filtering low-quality businesses...")
+    business_df = cleaner.filter_low_quality_businesses(business_df)
+    
+    # Save filtered business data
+    filtered_output = Path("data/processed/business_clean.csv")
+    business_df.to_csv(filtered_output, index=False)
+    print(f"Saved filtered business data: {filtered_output}")
+    
+    # Update summary with quality filter stats
+    # cleaning_summary['business']['quality_filter'] is already populated inside
+    # filter_low_quality_businesses; no need to overwrite here.
+
+    print("\n3/4 Cleaning review data...")
     review_df = cleaner.clean_review_data(sample_size)
 
-    print("\n3/3 Cleaning user data...")
+    print("\n4/4 Cleaning user data...")
     user_df = cleaner.clean_user_data(sample_size)
 
-    print("\n[OK] Data cleaning complete!")
-    # Report on-disk counts for streamed datasets
+    # Generate preprocessing report
+    print("\n" + "="*70)
+    print("GENERATING PREPROCESSING REPORT")
+    print("="*70)
+    cleaner.generate_preprocessing_report()
+
+    print("\n[OK] Data preprocessing complete!")
+    
+    # Report final counts
     def _count_rows_fast(path: str) -> int:
         try:
             with open(path, 'r', encoding='utf-8', newline='') as f:
@@ -717,12 +971,18 @@ def main():
 
     review_cols = len(pd.read_csv('data/processed/review_clean.csv', nrows=0).columns) if (Path('data/processed/review_clean.csv')).exists() else 0
     user_cols = len(pd.read_csv('data/processed/user_clean.csv', nrows=0).columns) if (Path('data/processed/user_clean.csv')).exists() else 0
+    
+    print("\nFinal dataset sizes:")
     print(f"  - business_clean.csv: {business_df.shape}")
     print(f"  - review_clean.csv: ({_count_rows_fast('data/processed/review_clean.csv')}, {review_cols})")
     print(f"  - user_clean.csv: ({_count_rows_fast('data/processed/user_clean.csv')}, {user_cols})")
+    print("")
+    print("Output files:")
+    print("  - data/processed/*.csv (cleaned datasets)")
+    print("  - data/processed/cleaning_summary.json")
+    print("  - src/data_processing/preprocessing_report.md")
+    print("")
 
 
 if __name__ == "__main__":
     main()
-
-

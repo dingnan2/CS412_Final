@@ -397,10 +397,10 @@ STAGE 5: MERGE & FINALIZE
 ┌─────────────────────────────────┐
 │ Save outputs:                   │
 │                                 │
-│ ✓ business_features_final.csv   │
-│ ✓ 6 category CSV files          │
-│ ✓ feature_engineering_report.md │
-│ ✓ feature_engineering.log       │
+│ [OK] business_features_final.csv   │
+│ [OK] 6 category CSV files          │
+│ [OK] feature_engineering_report.md │
+│ [OK] feature_engineering.log       │
 └─────────────────────────────────┘
 ```
 
@@ -676,29 +676,29 @@ data/features/
 │                                                               │
 │  PRE-PROCESSING CHECKS:                                      │
 │  ───────────────────────                                     │
-│   ✓ Input files exist                                        │
-│   ✓ No corrupted rows                                        │
-│   ✓ Required columns present                                 │
-│   ✓ Data types correct                                       │
+│   [OK] Input files exist                                        │
+│   [OK] No corrupted rows                                        │
+│   [OK] Required columns present                                 │
+│   [OK] Data types correct                                       │
 │                                                               │
 │  DURING PROCESSING:                                          │
 │  ──────────────────                                          │
-│   ✓ User credibility scores valid (0-1 range expected)      │
-│   ✓ Sentiment scores valid (-1 to 1)                        │
-│   ✓ No division by zero                                     │
-│   ✓ Weights sum to 1 per business                           │
+│   [OK] User credibility scores valid (0-1 range expected)      │
+│   [OK] Sentiment scores valid (-1 to 1)                        │
+│   [OK] No division by zero                                     │
+│   [OK] Weights sum to 1 per business                           │
 │                                                               │
 │  POST-PROCESSING VALIDATION:                                 │
 │  ──────────────────────────                                 │
-│   ✓ Shape = (150346, 74)                                    │
-│   ✓ Zero missing values                                      │
-│   ✓ Zero infinite values                                     │
-│   ✓ Feature ranges reasonable:                              │
+│   [OK] Shape = (150346, 74)                                    │
+│   [OK] Zero missing values                                      │
+│   [OK] Zero infinite values                                     │
+│   [OK] Feature ranges reasonable:                              │
 │      • stars: [1, 5]                                         │
 │      • review_count: [0, max]                                │
 │      • sentiment: [-1, 1]                                    │
 │      • credibility: [0, ~10]                                 │
-│   ✓ Target distribution: ~80/20                              │
+│   [OK] Target distribution: ~80/20                              │
 │                                                               │
 └──────────────────────────────────────────────────────────────┘
 ```

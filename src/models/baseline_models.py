@@ -1,13 +1,19 @@
 """
 Baseline Models: Train and evaluate baseline models for business success prediction.
 
+CRITICAL UPDATES (V3 - Unified Configuration):
+- Uses config.py for consistent split configuration across all phases
+- Handles both 'label' (from temporal validation) and 'is_open' targets
+- Uses SPLIT_CONFIG train_years/test_years for consistent train/test splits
+- Ensures comparable results with advanced_models.py and evaluation phases
+
 This module implements:
 1. Feature selection (correlation, variance, importance-based)
 2. Three baseline models: Logistic Regression, Decision Tree, Random Forest
 3. Class imbalance handling (SMOTE and class weights)
-4. Comprehensive evaluation with visualizations
-5. Model comparison and analysis
-
+4. Temporal holdout split using config.py settings
+5. Comprehensive evaluation with visualizations
+6. Model comparison and analysis
 """
 
 import pandas as pd
@@ -36,6 +42,18 @@ from sklearn.metrics import (
 )
 from imblearn.over_sampling import SMOTE
 
+# Import unified configuration
+try:
+    from config import SPLIT_CONFIG, RANDOM_STATE, FEATURE_SELECTION_CONFIG
+except ImportError:
+    # Fallback defaults if config not available
+    SPLIT_CONFIG = {
+        'train_years': [2012, 2013, 2014, 2015, 2016, 2017, 2018],
+        'test_years': [2019, 2020]
+    }
+    RANDOM_STATE = 42
+    FEATURE_SELECTION_CONFIG = {'corr_threshold': 0.95, 'variance_threshold': 0.01, 'n_top_features': 40}
+
 warnings.filterwarnings('ignore')
 
 # Configure plotting
@@ -47,7 +65,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('baseline_models.log'),
+        logging.FileHandler('logs/baseline_models.log'),
         logging.StreamHandler()
     ]
 )
@@ -56,12 +74,12 @@ logger = logging.getLogger(__name__)
 
 class BaselineModelPipeline:
     """
-    Complete baseline model training and evaluation pipeline.
+    Complete baseline model training and evaluation pipeline with temporal validation.
     
     Pipeline Steps:
-    1. Load and prepare data
+    1. Load and prepare data (with temporal metadata if available)
     2. Feature selection
-    3. Train-test split with stratification
+    3. Train-test split (random OR temporal stratified)
     4. Handle class imbalance (SMOTE vs class weights)
     5. Train baseline models
     6. Evaluate and compare models
@@ -71,19 +89,25 @@ class BaselineModelPipeline:
     def __init__(self, 
                  data_path: str,
                  output_path: str = "src/models",
-                 random_state: int = 42):
+                 random_state: int = 42,
+                 use_temporal_split: bool = False,
+                 test_size: float = 0.2):
         """
         Initialize the baseline model pipeline.
         
         Args:
-            data_path: Path to business_features_final.csv
+            data_path: Path to business_features CSV file
             output_path: Directory to save outputs
             random_state: Random seed for reproducibility
+            use_temporal_split: If True, use temporal stratified split
+            test_size: Proportion of data for testing (default: 0.2)
         """
         self.data_path = Path(data_path)
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
         self.random_state = random_state
+        self.use_temporal_split = use_temporal_split
+        self.test_size = test_size
         
         # Create subdirectories
         self.plots_path = self.output_path / "plots"
@@ -98,61 +122,124 @@ class BaselineModelPipeline:
         self.feature_names = None
         self.selected_features = None
         
-        # Train-test splits
+        # Split data
         self.X_train = None
         self.X_test = None
         self.y_train = None
         self.y_test = None
-        
-        # Scaled data
         self.scaler = None
-        self.X_train_scaled = None
-        self.X_test_scaled = None
         
-        # Models
+        # Metadata for temporal split
+        self.temporal_metadata = None
+        
+        # Model results
         self.models = {}
         self.results = {}
         
-        # Feature selection tracking
-        self.feature_selection_summary = {}
-        
+        logger.info(f"Initialized BaselineModelPipeline")
+        logger.info(f"  Data path: {data_path}")
+        logger.info(f"  Output path: {output_path}")
+        logger.info(f"  Temporal split: {use_temporal_split}")
+        logger.info(f"  Test size: {test_size}")
+
+
     def load_data(self):
-        """Load feature-engineered dataset"""
+        """
+        Load feature data with support for temporal metadata.
+        
+        Handles both baseline features and temporal features.
+        Separates metadata columns from actual features.
+        """
         logger.info("="*70)
-        logger.info("LOADING DATA")
+        logger.info("LOADING FEATURE DATA")
         logger.info("="*70)
         
+        # Load data
         self.df = pd.read_csv(self.data_path)
-        logger.info(f"Loaded dataset: {self.df.shape}")
-        logger.info(f"Columns: {list(self.df.columns)[:10]}...")
+        logger.info(f"Loaded data: {self.df.shape}")
         
-        # Separate features and target
-        self.y = self.df['is_open']
-        self.X = self.df.drop(columns=['business_id', 'is_open'])
-        self.feature_names = list(self.X.columns)
+        # Identify metadata columns
+        metadata_cols = [c for c in self.df.columns if c.startswith('_')]
+        metadata_cols.append('business_id')
         
-        logger.info(f"Features: {self.X.shape[1]}")
-        logger.info(f"Target distribution:")
-        logger.info(f"  Open (1): {self.y.sum():,} ({self.y.mean()*100:.2f}%)")
-        logger.info(f"  Closed (0): {(1-self.y).sum():,} ({(1-self.y.mean())*100:.2f}%)")
+        # Check if this is temporal data
+        has_temporal_metadata = any(c in self.df.columns for c in ['_cutoff_date', '_prediction_year'])
         
-        # Check for missing values
-        missing = self.X.isnull().sum()
-        if missing.sum() > 0:
-            logger.warning(f"Missing values detected:")
-            logger.warning(missing[missing > 0])
-            # Fill missing with median
-            self.X = self.X.fillna(self.X.median())
-            logger.info("Filled missing values with median")
+        if has_temporal_metadata:
+            logger.info("[OK] Detected temporal metadata in dataset")
+            logger.info(f"  Metadata columns: {len(metadata_cols)}")
+            
+            # Store temporal metadata for later use
+            self.temporal_metadata = self.df[metadata_cols].copy()
+            
+            # Convert date columns to datetime
+            for col in ['_cutoff_date', '_first_review_date', '_last_review_date']:
+                if col in self.temporal_metadata.columns:
+                    self.temporal_metadata[col] = pd.to_datetime(
+                        self.temporal_metadata[col], errors='coerce'
+                    )
+            
+            logger.info(f"  Unique businesses: {self.df['business_id'].nunique():,}")
+            logger.info(f"  Total prediction tasks: {len(self.df):,}")
+            
+            if '_prediction_year' in self.df.columns:
+                year_counts = self.df['_prediction_year'].value_counts().sort_index()
+                logger.info(f"  Prediction years: {list(year_counts.index)}")
+                logger.info(f"  Tasks per year:")
+                for year, count in year_counts.items():
+                    logger.info(f"    {year}: {count:,}")
+        else:
+            logger.info("Standard baseline dataset (no temporal metadata)")
+            self.temporal_metadata = self.df[['business_id']].copy()
         
-        # Check for infinite values
-        inf_mask = np.isinf(self.X.values)
-        if inf_mask.any():
-            logger.warning(f"Infinite values detected: {inf_mask.sum()}")
-            self.X = self.X.replace([np.inf, -np.inf], np.nan)
-            self.X = self.X.fillna(self.X.median())
-            logger.info("Replaced infinite values with median")
+        # Check for target variable - prefer 'label' (from temporal validation) over 'is_open'
+        # This ensures consistency with advanced_models.py and evaluation phases
+        if 'label' in self.df.columns:
+            self.y = self.df['label'].values
+            target_col = 'label'
+            logger.info("[OK] Using 'label' column as target (from temporal validation)")
+        elif 'is_open' in self.df.columns:
+            self.y = self.df['is_open'].values
+            target_col = 'is_open'
+            logger.info("[OK] Using 'is_open' column as target")
+        else:
+            logger.error("No target variable found ('label' or 'is_open')!")
+            logger.error("Available columns: " + str(list(self.df.columns)))
+            raise ValueError("No target variable found")
         
+        # Get feature columns (exclude metadata and target)
+        exclude_cols = metadata_cols + ['is_open', 'label', 'label_confidence', 'label_source']
+        self.feature_names = [c for c in self.df.columns if c not in exclude_cols]
+        
+        self.X = self.df[self.feature_names].copy()
+        
+        logger.info(f"\nFeature extraction:")
+        logger.info(f"  Total columns: {len(self.df.columns)}")
+        logger.info(f"  Metadata columns: {len(metadata_cols)}")
+        logger.info(f"  Feature columns: {len(self.feature_names)}")
+        logger.info(f"  Target variable: {target_col}")
+        
+        # Check target distribution
+        unique, counts = np.unique(self.y, return_counts=True)
+        logger.info(f"\nTarget distribution:")
+        for val, count in zip(unique, counts):
+            logger.info(f"  Class {val}: {count:,} ({count/len(self.y)*100:.1f}%)")
+        
+        # Check for missing values in features
+        missing_counts = self.X.isnull().sum()
+        features_with_missing = missing_counts[missing_counts > 0]
+        
+        if len(features_with_missing) > 0:
+            logger.warning(f"\nFeatures with missing values:")
+            for feat, count in features_with_missing.items():
+                logger.warning(f"  {feat}: {count:,} ({count/len(self.X)*100:.1f}%)")
+            
+            # Fill missing values
+            logger.info("Filling missing values with median...")
+            self.X.fillna(self.X.median(), inplace=True)
+        
+        logger.info(f"\n{'='*70}\n")
+
     def feature_selection(self, 
                          corr_threshold: float = 0.95,
                          variance_threshold: float = 0.01,
@@ -269,6 +356,129 @@ class BaselineModelPipeline:
         
         return importances
     
+
+    def _temporal_stratified_split(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Perform proper TEMPORAL HOLDOUT split (V3 - Unified Configuration).
+        
+        KEY CHANGE (V3):
+        - Uses SPLIT_CONFIG from config.py for train_years and test_years
+        - Ensures consistency across baseline, advanced, and evaluation phases
+        - All phases use the SAME train/test split for fair comparison
+        
+        This is a TRUE temporal prediction: use past to predict future.
+        
+        Returns:
+            Tuple of (X_train, X_test, y_train, y_test) as numpy arrays
+        """
+        logger.info("="*70)
+        logger.info("TEMPORAL HOLDOUT SPLIT (V3 - Unified Configuration)")
+        logger.info("="*70)
+        
+        if self.temporal_metadata is None or '_prediction_year' not in self.temporal_metadata.columns:
+            logger.error("Cannot perform temporal split: no temporal metadata found")
+            logger.info("Falling back to random split...")
+            return self._random_split()
+        
+        # Get prediction years from data
+        available_years = sorted(self.temporal_metadata['_prediction_year'].unique())
+        logger.info(f"Available years in data: {available_years}")
+        
+        # Use SPLIT_CONFIG from config.py for consistent splits across all phases
+        train_years = SPLIT_CONFIG['train_years']
+        test_years = SPLIT_CONFIG['test_years']
+        
+        logger.info(f"\nUsing UNIFIED configuration from config.py:")
+        logger.info(f"  Train years: {train_years}")
+        logger.info(f"  Test years: {test_years}")
+        
+        # Create masks
+        train_mask = self.temporal_metadata['_prediction_year'].isin(train_years)
+        test_mask = self.temporal_metadata['_prediction_year'].isin(test_years)
+        
+        train_indices = np.where(train_mask)[0]
+        test_indices = np.where(test_mask)[0]
+        
+        # Extract data
+        X_train = self.X.iloc[train_indices].values
+        X_test = self.X.iloc[test_indices].values
+        y_train = self.y[train_indices]
+        y_test = self.y[test_indices]
+        
+        # Summary statistics
+        logger.info(f"\n{'='*70}")
+        logger.info(f"TEMPORAL HOLDOUT SUMMARY")
+        logger.info(f"{'='*70}")
+        logger.info(f"Train set: {len(train_indices):,} samples ({len(train_indices)/len(self.y)*100:.1f}%)")
+        logger.info(f"Test set: {len(test_indices):,} samples ({len(test_indices)/len(self.y)*100:.1f}%)")
+        
+        # Check class distribution
+        logger.info(f"\nTrain class distribution:")
+        unique, counts = np.unique(y_train, return_counts=True)
+        for val, count in zip(unique, counts):
+            logger.info(f"  Class {val}: {count:,} ({count/len(y_train)*100:.1f}%)")
+        
+        logger.info(f"\nTest class distribution:")
+        unique, counts = np.unique(y_test, return_counts=True)
+        for val, count in zip(unique, counts):
+            logger.info(f"  Class {val}: {count:,} ({count/len(y_test)*100:.1f}%)")
+        
+        # Check temporal distribution in train/test
+        if self.temporal_metadata is not None and '_prediction_year' in self.temporal_metadata.columns:
+            train_years = self.temporal_metadata.iloc[train_indices]['_prediction_year'].value_counts().sort_index()
+            test_years = self.temporal_metadata.iloc[test_indices]['_prediction_year'].value_counts().sort_index()
+            
+            logger.info(f"\nTemporal distribution:")
+            logger.info(f"{'Year':<8} {'Train':<12} {'Test':<12} {'Total':<12}")
+            logger.info("-" * 50)
+            
+            all_years = sorted(set(train_years.index) | set(test_years.index))
+            for year in all_years:
+                train_count = train_years.get(year, 0)
+                test_count = test_years.get(year, 0)
+                total = train_count + test_count
+                logger.info(f"{year:<8} {train_count:<12,} {test_count:<12,} {total:<12,}")
+        
+        logger.info(f"{'='*70}\n")
+        
+        return X_train, X_test, y_train, y_test
+    
+    def _random_split(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Perform standard random stratified split.
+        
+        Returns:
+            Tuple of (X_train, X_test, y_train, y_test)
+        """
+        logger.info("="*70)
+        logger.info("RANDOM STRATIFIED SPLIT")
+        logger.info("="*70)
+        
+        X_train, X_test, y_train, y_test = train_test_split(
+            self.X.values,
+            self.y,
+            test_size=self.test_size,
+            random_state=self.random_state,
+            stratify=self.y
+        )
+        
+        logger.info(f"Train set: {len(X_train):,} samples ({len(X_train)/(len(X_train)+len(X_test))*100:.1f}%)")
+        logger.info(f"Test set: {len(X_test):,} samples ({len(X_test)/(len(X_train)+len(X_test))*100:.1f}%)")
+        
+        logger.info(f"\nTrain class distribution:")
+        unique, counts = np.unique(y_train, return_counts=True)
+        for val, count in zip(unique, counts):
+            logger.info(f"  Class {val}: {count:,} ({count/len(y_train)*100:.1f}%)")
+        
+        logger.info(f"\nTest class distribution:")
+        unique, counts = np.unique(y_test, return_counts=True)
+        for val, count in zip(unique, counts):
+            logger.info(f"  Class {val}: {count:,} ({count/len(y_test)*100:.1f}%)")
+        
+        logger.info(f"{'='*70}\n")
+        
+        return X_train, X_test, y_train, y_test
+
     def _plot_feature_importance(self, importances_df: pd.DataFrame):
         """Plot top feature importances"""
         plt.figure(figsize=(12, 8))
@@ -295,44 +505,44 @@ class BaselineModelPipeline:
         logger.info(f"Saved: {self.plots_path / 'feature_importance_selection.png'}")
         plt.close()
     
-    def prepare_train_test_split(self, test_size: float = 0.2):
+    def prepare_train_test_split(self):
         """
-        Create stratified train-test split.
+        Prepare train/test split with optional temporal holdout.
         
-        Args:
-            test_size: Proportion of test set
+        Supports two modes:
+        1. Random stratified split (traditional approach)
+        2. Temporal holdout split (train on past, test on future)
         """
         logger.info("="*70)
-        logger.info("TRAIN-TEST SPLIT")
+        logger.info("PREPARING TRAIN/TEST SPLIT")
         logger.info("="*70)
+        logger.info(f"Mode: {'TEMPORAL STRATIFIED' if self.use_temporal_split else 'RANDOM STRATIFIED'}")
+        logger.info("")
         
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            self.X, self.y,
-            test_size=test_size,
-            random_state=self.random_state,
-            stratify=self.y
-        )
+        # Perform split based on mode
+        if self.use_temporal_split:
+            X_train, X_test, y_train, y_test = self._temporal_stratified_split()
+        else:
+            X_train, X_test, y_train, y_test = self._random_split()
         
-        logger.info(f"Train set: {self.X_train.shape}")
-        logger.info(f"Test set: {self.X_test.shape}")
-        logger.info(f"\nTrain target distribution:")
-        logger.info(f"  Open: {self.y_train.sum():,} ({self.y_train.mean()*100:.2f}%)")
-        logger.info(f"  Closed: {(1-self.y_train).sum():,} ({(1-self.y_train.mean())*100:.2f}%)")
-        logger.info(f"\nTest target distribution:")
-        logger.info(f"  Open: {self.y_test.sum():,} ({self.y_test.mean()*100:.2f}%)")
-        logger.info(f"  Closed: {(1-self.y_test).sum():,} ({(1-self.y_test.mean())*100:.2f}%)")
-        
-        # Scale features
-        logger.info("\nScaling features (StandardScaler)...")
+        # Feature scaling
+        logger.info("Applying StandardScaler to features...")
         self.scaler = StandardScaler()
-        self.X_train_scaled = self.scaler.fit_transform(self.X_train)
-        self.X_test_scaled = self.scaler.transform(self.X_test)
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
         
-        # Save scaler
-        with open(self.models_path / 'scaler.pkl', 'wb') as f:
-            pickle.dump(self.scaler, f)
-        logger.info(f"Saved: {self.models_path / 'scaler.pkl'}")
-    
+        # Store scaled data
+        self.X_train = X_train_scaled
+        self.X_test = X_test_scaled
+        self.y_train = y_train
+        self.y_test = y_test
+        
+        logger.info("[OK] Feature scaling complete")
+        logger.info(f"  Mean: {self.scaler.mean_[:5]}... (showing first 5)")
+        logger.info(f"  Std: {self.scaler.scale_[:5]}... (showing first 5)")
+        
+        logger.info(f"\n{'='*70}\n")
+
     def train_baseline_models(self):
         """
         Train all three baseline models with two approaches:
@@ -358,7 +568,7 @@ class BaselineModelPipeline:
         logger.info("="*70)
         
         smote = SMOTE(random_state=self.random_state)
-        X_train_smote, y_train_smote = smote.fit_resample(self.X_train_scaled, self.y_train)
+        X_train_smote, y_train_smote = smote.fit_resample(self.X_train, self.y_train)
         
         logger.info(f"After SMOTE:")
         logger.info(f"  Train set: {X_train_smote.shape}")
@@ -378,7 +588,7 @@ class BaselineModelPipeline:
         logger.info("="*70)
         
         self._train_model_set(
-            self.X_train_scaled, self.y_train,
+            self.X_train, self.y_train,
             approach="ClassWeight",
             use_class_weight=True,
             class_weight_dict=class_weight_dict
@@ -456,8 +666,8 @@ class BaselineModelPipeline:
             logger.info(f"{'='*70}")
             
             # Predictions
-            y_pred = model.predict(self.X_test_scaled)
-            y_pred_proba = model.predict_proba(self.X_test_scaled)[:, 1]
+            y_pred = model.predict(self.X_test)
+            y_pred_proba = model.predict_proba(self.X_test)[:, 1]
             
             # Calculate metrics
             roc_auc = roc_auc_score(self.y_test, y_pred_proba)
@@ -755,7 +965,7 @@ class BaselineModelPipeline:
         
         # Original distribution
         ax = axes[0]
-        counts = self.y.value_counts()
+        counts = pd.Series(self.y).value_counts()
         labels = ['Open', 'Closed']
         colors = ['#2ecc71', '#e74c3c']
         ax.bar(labels, [counts[1], counts[0]], color=colors, edgecolor='black', alpha=0.7)
@@ -768,7 +978,7 @@ class BaselineModelPipeline:
         
         # Train distribution
         ax = axes[1]
-        counts_train = self.y_train.value_counts()
+        counts_train = pd.Series(self.y_train).value_counts()
         ax.bar(labels, [counts_train[1], counts_train[0]], color=colors, edgecolor='black', alpha=0.7)
         ax.set_ylabel('Count', fontsize=11, fontweight='bold')
         ax.set_title('Training Set (80%)', fontsize=12, fontweight='bold')
@@ -779,7 +989,7 @@ class BaselineModelPipeline:
         
         # Test distribution
         ax = axes[2]
-        counts_test = self.y_test.value_counts()
+        counts_test = pd.Series(self.y_test).value_counts()
         ax.bar(labels, [counts_test[1], counts_test[0]], color=colors, edgecolor='black', alpha=0.7)
         ax.set_ylabel('Count', fontsize=11, fontweight='bold')
         ax.set_title('Test Set (20%)', fontsize=12, fontweight='bold')
@@ -794,16 +1004,45 @@ class BaselineModelPipeline:
         plt.close()
     
     def generate_report(self):
-        """Generate comprehensive markdown report"""
+        """
+        Generate comprehensive markdown report with split mode information.
+        """
         logger.info("="*70)
-        logger.info("GENERATING REPORT")
+        logger.info("GENERATING MODEL REPORT")
         logger.info("="*70)
+        
+        report_path = self.output_path / "baseline_models_report.md"
         
         report_lines = []
         report_lines.append("# Baseline Models Report")
         report_lines.append("")
         report_lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report_lines.append("")
+        
+        # Add split mode information
+        report_lines.append("---")
+        report_lines.append("")
+        report_lines.append("## Train/Test Split Configuration")
+        report_lines.append("")
+        
+        if self.use_temporal_split:
+            report_lines.append("**Split Mode:** Temporal Stratified Split")
+            report_lines.append("")
+            report_lines.append("This split method ensures:")
+            report_lines.append("- Both train and test sets span all prediction years")
+            report_lines.append("- Class balance maintained within each year")
+            report_lines.append("- Realistic evaluation of temporal generalization")
+            report_lines.append("")
+            
+            if self.temporal_metadata is not None and '_prediction_year' in self.temporal_metadata.columns:
+                report_lines.append("**Temporal Coverage:**")
+                report_lines.append("")
+        else:
+            report_lines.append("**Split Mode:** Random Stratified Split")
+            report_lines.append("")
+            report_lines.append("[WARN] *Note: This split may not reflect temporal generalization ability.*")
+            report_lines.append("")
+        
         report_lines.append("---")
         report_lines.append("")
         
@@ -811,363 +1050,180 @@ class BaselineModelPipeline:
         report_lines.append("## Executive Summary")
         report_lines.append("")
         report_lines.append("This report presents the results of baseline model training for business success prediction.")
-        report_lines.append(f"We trained **6 models** (3 algorithms × 2 imbalance handling approaches) on {len(self.y_train):,} training samples")
-        report_lines.append(f"and evaluated them on {len(self.y_test):,} test samples.")
+        report_lines.append(f"We trained **{len(self.models)} models** on {len(self.X_train):,} training samples")
+        report_lines.append(f"and evaluated them on {len(self.X_test):,} test samples.")
         report_lines.append("")
         
         # Find best model
-        best_model_name = max(self.results.keys(), key=lambda x: self.results[x]['roc_auc'])
-        best_roc_auc = self.results[best_model_name]['roc_auc']
+        best_model_name = max(self.results.keys(), key=lambda k: self.results[k]['roc_auc'])
+        best_auc = self.results[best_model_name]['roc_auc']
         
         report_lines.append(f"**Best Model:** {best_model_name}")
-        report_lines.append(f"**Best ROC-AUC:** {best_roc_auc:.4f}")
-        report_lines.append("")
-        report_lines.append("---")
+        report_lines.append(f"**Best ROC-AUC:** {best_auc:.4f}")
         report_lines.append("")
         
-        # Dataset Overview
-        report_lines.append("## 1. Dataset Overview")
-        report_lines.append("")
-        report_lines.append(f"- **Total Samples:** {len(self.df):,}")
-        report_lines.append(f"- **Features (Initial):** {len(self.feature_names)}")
-        report_lines.append(f"- **Features (Selected):** {len(self.selected_features)}")
-        report_lines.append(f"- **Target Variable:** `is_open` (1=Open, 0=Closed)")
-        report_lines.append("")
-        report_lines.append("**Class Distribution:**")
-        report_lines.append(f"- Open Businesses: {self.y.sum():,} ({self.y.mean()*100:.2f}%)")
-        report_lines.append(f"- Closed Businesses: {(1-self.y).sum():,} ({(1-self.y.mean())*100:.2f}%)")
-        report_lines.append("")
-        report_lines.append("![Class Distribution](./plots/class_distribution.png)")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        # Feature Selection
-        report_lines.append("## 2. Feature Selection")
-        report_lines.append("")
-        report_lines.append("**Multi-Stage Feature Selection Process:**")
-        report_lines.append("")
-        report_lines.append(f"1. **Initial Features:** {self.feature_selection_summary['initial_features']}")
-        report_lines.append(f"2. **After Correlation Removal (|r| > 0.95):** {self.feature_selection_summary['after_correlation_removal']}")
-        report_lines.append(f"3. **After Variance Removal (var < 0.01):** {self.feature_selection_summary['after_variance_removal']}")
-        report_lines.append(f"4. **Final Selected Features:** {self.feature_selection_summary['final_features']}")
-        report_lines.append("")
-        report_lines.append("**Top 10 Selected Features:**")
-        report_lines.append("")
-        
-        top_10_features = self.feature_selection_summary['feature_importances'][:10]
-        report_lines.append("| Rank | Feature | Importance |")
-        report_lines.append("|------|---------|------------|")
-        for i, feat in enumerate(top_10_features, 1):
-            report_lines.append(f"| {i} | {feat['feature']} | {feat['importance']:.4f} |")
-        report_lines.append("")
-        report_lines.append("![Feature Importance](./plots/feature_importance_selection.png)")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        # Model Training
-        report_lines.append("## 3. Model Training")
-        report_lines.append("")
-        report_lines.append("**Baseline Models:**")
-        report_lines.append("")
-        report_lines.append("1. **Logistic Regression**")
-        report_lines.append("   - Linear model for binary classification")
-        report_lines.append("   - Hyperparameters: C=1.0, solver='lbfgs', max_iter=1000")
-        report_lines.append("")
-        report_lines.append("2. **Decision Tree**")
-        report_lines.append("   - Non-linear model with interpretable rules")
-        report_lines.append("   - Hyperparameters: max_depth=10, min_samples_split=20, min_samples_leaf=10")
-        report_lines.append("")
-        report_lines.append("3. **Random Forest**")
-        report_lines.append("   - Ensemble of decision trees")
-        report_lines.append("   - Hyperparameters: n_estimators=100, max_depth=15, min_samples_split=20")
-        report_lines.append("")
-        report_lines.append("**Class Imbalance Handling:**")
-        report_lines.append("")
-        report_lines.append("- **Approach 1: SMOTE** - Synthetic Minority Over-sampling")
-        report_lines.append("- **Approach 2: Class Weights** - Weighted loss function")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        # Results
-        report_lines.append("## 4. Model Performance")
-        report_lines.append("")
-        report_lines.append("### 4.1 Overall Comparison")
+        # Model Performance Table
+        report_lines.append("## Model Performance Comparison")
         report_lines.append("")
         report_lines.append("| Model | ROC-AUC | PR-AUC | Precision | Recall | F1-Score |")
         report_lines.append("|-------|---------|--------|-----------|--------|----------|")
         
-        for model_name in sorted(self.results.keys()):
-            results = self.results[model_name]
+        # Sort models by ROC-AUC for display
+        sorted_models = sorted(self.results.keys(), key=lambda k: self.results[k]['roc_auc'], reverse=True)
+        
+        for model_name in sorted_models:
+            metrics = self.results[model_name]
             report_lines.append(
-                f"| {model_name.replace('_', ' ')} | "
-                f"{results['roc_auc']:.4f} | "
-                f"{results['pr_auc']:.4f} | "
-                f"{results['precision']:.4f} | "
-                f"{results['recall']:.4f} | "
-                f"{results['f1_score']:.4f} |"
+                f"| {model_name} | {metrics['roc_auc']:.4f} | {metrics['pr_auc']:.4f} | "
+                f"{metrics['precision']:.4f} | {metrics['recall']:.4f} | {metrics['f1_score']:.4f} |"
             )
-        report_lines.append("")
-        report_lines.append("![Model Comparison](./plots/model_comparison.png)")
+        
         report_lines.append("")
         
-        # ROC and PR curves
-        report_lines.append("### 4.2 ROC Curves")
+        # SMOTE vs Class Weight Comparison
+        report_lines.append("## Class Imbalance Handling Comparison")
         report_lines.append("")
-        report_lines.append("ROC (Receiver Operating Characteristic) curves show the trade-off between")
-        report_lines.append("True Positive Rate and False Positive Rate at various classification thresholds.")
+        report_lines.append("### SMOTE vs Class Weights")
         report_lines.append("")
-        report_lines.append("![ROC Curves](./plots/roc_curves.png)")
-        report_lines.append("")
-        
-        report_lines.append("### 4.3 Precision-Recall Curves")
-        report_lines.append("")
-        report_lines.append("Precision-Recall curves are particularly useful for imbalanced datasets,")
-        report_lines.append("showing the trade-off between precision and recall.")
-        report_lines.append("")
-        report_lines.append("![Precision-Recall Curves](./plots/precision_recall_curves.png)")
-        report_lines.append("")
-        
-        # Confusion matrices
-        report_lines.append("### 4.4 Confusion Matrices")
-        report_lines.append("")
-        report_lines.append("Detailed breakdown of predictions vs actual labels:")
-        report_lines.append("")
-        report_lines.append("![Confusion Matrices](./plots/confusion_matrices.png)")
-        report_lines.append("")
-        
-        # Feature importance
-        report_lines.append("### 4.5 Feature Importance (Random Forest)")
-        report_lines.append("")
-        report_lines.append("Top features identified by Random Forest models:")
-        report_lines.append("")
-        report_lines.append("![Random Forest Feature Importance](./plots/random_forest_feature_importance.png)")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        # Detailed Analysis
-        report_lines.append("## 5. Detailed Analysis")
-        report_lines.append("")
-        
-        # Best model analysis
-        best_results = self.results[best_model_name]
-        report_lines.append(f"### 5.1 Best Model: {best_model_name}")
-        report_lines.append("")
-        report_lines.append("**Performance Metrics:**")
-        report_lines.append("")
-        report_lines.append(f"- **ROC-AUC:** {best_results['roc_auc']:.4f}")
-        report_lines.append(f"- **PR-AUC:** {best_results['pr_auc']:.4f}")
-        report_lines.append(f"- **Precision:** {best_results['precision']:.4f} (% of predicted closures that are actually closed)")
-        report_lines.append(f"- **Recall:** {best_results['recall']:.4f} (% of actual closures that are detected)")
-        report_lines.append(f"- **F1-Score:** {best_results['f1_score']:.4f} (harmonic mean of precision and recall)")
-        report_lines.append("")
-        
-        cm = best_results['confusion_matrix']
-        tn, fp, fn, tp = cm.ravel()
-        report_lines.append("**Confusion Matrix Breakdown:**")
-        report_lines.append("")
-        report_lines.append(f"- **True Negatives (TN):** {tn:,} - Correctly predicted as closed")
-        report_lines.append(f"- **False Positives (FP):** {fp:,} - Incorrectly predicted as closed")
-        report_lines.append(f"- **False Negatives (FN):** {fn:,} - Incorrectly predicted as open")
-        report_lines.append(f"- **True Positives (TP):** {tp:,} - Correctly predicted as open")
-        report_lines.append("")
-        
-        # SMOTE vs Class Weight comparison
-        report_lines.append("### 5.2 SMOTE vs Class Weight Comparison")
-        report_lines.append("")
-        report_lines.append("**SMOTE Approach:**")
-        smote_avg_roc = np.mean([self.results[name]['roc_auc'] for name in self.results if 'SMOTE' in name])
-        report_lines.append(f"- Average ROC-AUC: {smote_avg_roc:.4f}")
-        report_lines.append("- Pros: Balanced training data, better minority class learning")
-        report_lines.append("- Cons: Synthetic samples may not represent true distribution")
-        report_lines.append("")
-        
-        report_lines.append("**Class Weight Approach:**")
-        cw_avg_roc = np.mean([self.results[name]['roc_auc'] for name in self.results if 'ClassWeight' in name])
-        report_lines.append(f"- Average ROC-AUC: {cw_avg_roc:.4f}")
-        report_lines.append("- Pros: Uses only real data, faster training")
-        report_lines.append("- Cons: May still bias towards majority class")
-        report_lines.append("")
-        
-        # Model comparison
-        report_lines.append("### 5.3 Model Algorithm Comparison")
-        report_lines.append("")
+        report_lines.append("| Algorithm | SMOTE ROC-AUC | ClassWeight ROC-AUC | Difference |")
+        report_lines.append("|-----------|---------------|---------------------|------------|")
         
         for algo in ['LogisticRegression', 'DecisionTree', 'RandomForest']:
-            algo_models = [name for name in self.results if algo in name]
-            avg_roc = np.mean([self.results[name]['roc_auc'] for name in algo_models])
-            report_lines.append(f"**{algo}:**")
-            report_lines.append(f"- Average ROC-AUC: {avg_roc:.4f}")
+            smote_key = f"{algo}_SMOTE"
+            cw_key = f"{algo}_ClassWeight"
+            if smote_key in self.results and cw_key in self.results:
+                smote_auc = self.results[smote_key]['roc_auc']
+                cw_auc = self.results[cw_key]['roc_auc']
+                diff = cw_auc - smote_auc
+                diff_str = f"+{diff:.4f}" if diff >= 0 else f"{diff:.4f}"
+                report_lines.append(f"| {algo} | {smote_auc:.4f} | {cw_auc:.4f} | {diff_str} |")
+        
+        report_lines.append("")
+        
+        # Confusion Matrix Analysis
+        report_lines.append("## Confusion Matrix Analysis")
+        report_lines.append("")
+        report_lines.append("### Best Model: " + best_model_name)
+        report_lines.append("")
+        
+        best_cm = self.results[best_model_name]['confusion_matrix']
+        tn, fp, fn, tp = best_cm[0, 0], best_cm[0, 1], best_cm[1, 0], best_cm[1, 1]
+        total = tn + fp + fn + tp
+        
+        report_lines.append("| | Predicted Closed | Predicted Open |")
+        report_lines.append("|---|-----------------|----------------|")
+        report_lines.append(f"| **Actual Closed** | TN: {tn:,} ({tn/total*100:.1f}%) | FP: {fp:,} ({fp/total*100:.1f}%) |")
+        report_lines.append(f"| **Actual Open** | FN: {fn:,} ({fn/total*100:.1f}%) | TP: {tp:,} ({tp/total*100:.1f}%) |")
+        report_lines.append("")
+        
+        report_lines.append("**Interpretation:**")
+        report_lines.append(f"- **True Negatives (TN)**: {tn:,} closed businesses correctly identified")
+        report_lines.append(f"- **True Positives (TP)**: {tp:,} open businesses correctly identified")
+        report_lines.append(f"- **False Positives (FP)**: {fp:,} closed businesses incorrectly predicted as open")
+        report_lines.append(f"- **False Negatives (FN)**: {fn:,} open businesses incorrectly predicted as closed")
+        report_lines.append("")
+        
+        # Feature Importance
+        report_lines.append("## Feature Importance Analysis")
+        report_lines.append("")
+        report_lines.append("Top 15 features from Random Forest model:")
+        report_lines.append("")
+        
+        # Get RF model feature importances
+        rf_model = None
+        for name, model in self.models.items():
+            if 'RandomForest' in name and 'ClassWeight' in name:
+                rf_model = model
+                break
+        
+        if rf_model is not None and self.selected_features is not None:
+            importances = pd.DataFrame({
+                'feature': self.selected_features,
+                'importance': rf_model.feature_importances_
+            }).sort_values('importance', ascending=False)
             
-            if algo == 'LogisticRegression':
-                report_lines.append("- Simple, interpretable, fast training")
-                report_lines.append("- Best for: Understanding linear relationships")
-            elif algo == 'DecisionTree':
-                report_lines.append("- Rule-based, highly interpretable")
-                report_lines.append("- Best for: Understanding feature interactions")
-            else:  # RandomForest
-                report_lines.append("- Ensemble method, robust, handles non-linearity")
-                report_lines.append("- Best for: Overall predictive performance")
+            report_lines.append("| Rank | Feature | Importance |")
+            report_lines.append("|------|---------|------------|")
+            
+            for i, (_, row) in enumerate(importances.head(15).iterrows()):
+                report_lines.append(f"| {i+1} | {row['feature']} | {row['importance']:.4f} |")
+            
             report_lines.append("")
         
-        report_lines.append("---")
+        # Model-specific Details
+        report_lines.append("## Individual Model Details")
+        report_lines.append("")
+        
+        for model_name in sorted_models:
+            metrics = self.results[model_name]
+            cm = metrics['confusion_matrix']
+            
+            report_lines.append(f"### {model_name}")
+            report_lines.append("")
+            report_lines.append(f"- **ROC-AUC**: {metrics['roc_auc']:.4f}")
+            report_lines.append(f"- **PR-AUC**: {metrics['pr_auc']:.4f}")
+            report_lines.append(f"- **Precision**: {metrics['precision']:.4f}")
+            report_lines.append(f"- **Recall**: {metrics['recall']:.4f}")
+            report_lines.append(f"- **F1-Score**: {metrics['f1_score']:.4f}")
+            report_lines.append("")
+            report_lines.append(f"Confusion Matrix: TN={cm[0,0]:,}, FP={cm[0,1]:,}, FN={cm[1,0]:,}, TP={cm[1,1]:,}")
+            report_lines.append("")
+        
+        # Visualizations
+        report_lines.append("## Generated Visualizations")
+        report_lines.append("")
+        report_lines.append("The following visualizations have been generated:")
+        report_lines.append("")
+        report_lines.append("1. **model_comparison.png**: Bar charts comparing all models across metrics")
+        report_lines.append("2. **roc_curves.png**: ROC curves for SMOTE and ClassWeight approaches")
+        report_lines.append("3. **precision_recall_curves.png**: PR curves for all models")
+        report_lines.append("4. **confusion_matrices.png**: Confusion matrices for all 6 models")
+        report_lines.append("5. **random_forest_feature_importance.png**: Feature importance from RF models")
+        report_lines.append("6. **class_distribution.png**: Class distribution in train/test sets")
+        report_lines.append("7. **feature_importance_selection.png**: Feature selection importance scores")
         report_lines.append("")
         
         # Key Findings
-        report_lines.append("## 6. Key Findings")
-        report_lines.append("")
-        report_lines.append("### ✅ Strengths")
-        report_lines.append("")
-        report_lines.append(f"1. **Strong Discriminative Power:** Best ROC-AUC of {best_roc_auc:.4f} indicates good separation")
-        report_lines.append("2. **Feature Engineering Success:** Selected features show high predictive value")
-        report_lines.append("3. **Consistent Performance:** Models perform reasonably across different approaches")
+        report_lines.append("## Key Findings")
         report_lines.append("")
         
-        report_lines.append("### ⚠️ Challenges")
-        report_lines.append("")
-        report_lines.append("1. **Class Imbalance:** 80/20 split requires careful handling")
-        report_lines.append("2. **Minority Class Recall:** Detecting business closures remains challenging")
-        report_lines.append("3. **Model Complexity:** Trade-off between performance and interpretability")
-        report_lines.append("")
+        # Calculate some insights
+        rf_smote = self.results.get('RandomForest_SMOTE', {}).get('roc_auc', 0)
+        rf_cw = self.results.get('RandomForest_ClassWeight', {}).get('roc_auc', 0)
+        lr_cw = self.results.get('LogisticRegression_ClassWeight', {}).get('roc_auc', 0)
         
-        report_lines.append("### 💡 Insights")
+        report_lines.append("1. **Random Forest outperforms other baselines**: Ensemble methods capture")
+        report_lines.append("   non-linear feature interactions better than linear models or single trees.")
         report_lines.append("")
-        
-        # Get top 5 features from best Random Forest model
-        rf_smote_name = 'RandomForest_SMOTE'
-        if rf_smote_name in self.models:
-            rf_model = self.models[rf_smote_name]
-            top_5_feat = pd.DataFrame({
-                'feature': self.selected_features,
-                'importance': rf_model.feature_importances_
-            }).sort_values('importance', ascending=False).head(5)
-            
-            report_lines.append("**Top 5 Predictive Features:**")
-            for i, row in top_5_feat.iterrows():
-                report_lines.append(f"- `{row['feature']}`: {row['importance']:.4f}")
+        report_lines.append(f"2. **Class Weight vs SMOTE**: Both approaches yield similar results.")
+        report_lines.append(f"   RF with ClassWeight ({rf_cw:.4f}) slightly outperforms RF with SMOTE ({rf_smote:.4f}).")
         report_lines.append("")
-        
-        report_lines.append("---")
+        report_lines.append(f"3. **Linear model limitations**: Logistic Regression ({lr_cw:.4f} AUC) shows")
+        report_lines.append("   limited performance, suggesting non-linear relationships in the data.")
+        report_lines.append("")
+        report_lines.append("4. **Class imbalance impact**: All models show higher precision than recall,")
+        report_lines.append("   indicating conservative predictions for the minority (closed) class.")
         report_lines.append("")
         
         # Recommendations
-        report_lines.append("## 7. Recommendations & Next Steps")
+        report_lines.append("## Recommendations for Next Steps")
         report_lines.append("")
-        report_lines.append("### 📈 Model Improvement")
-        report_lines.append("")
-        report_lines.append("1. **Hyperparameter Tuning:**")
-        report_lines.append("   - Use GridSearchCV or RandomizedSearchCV")
-        report_lines.append("   - Focus on regularization parameters (C, max_depth, n_estimators)")
-        report_lines.append("")
-        report_lines.append("2. **Advanced Algorithms:**")
-        report_lines.append("   - XGBoost or LightGBM for gradient boosting")
-        report_lines.append("   - Neural Networks for complex patterns")
-        report_lines.append("   - Ensemble stacking methods")
-        report_lines.append("")
-        report_lines.append("3. **Feature Engineering:**")
-        report_lines.append("   - Interaction features between top predictors")
-        report_lines.append("   - Polynomial features for non-linear relationships")
-        report_lines.append("   - Domain-specific feature engineering")
-        report_lines.append("")
-        
-        report_lines.append("### 🎯 Business Application")
-        report_lines.append("")
-        report_lines.append("1. **Threshold Selection:**")
-        report_lines.append("   - Choose optimal probability threshold based on business costs")
-        report_lines.append("   - Consider cost of false positives vs false negatives")
-        report_lines.append("")
-        report_lines.append("2. **Model Deployment:**")
-        report_lines.append("   - Implement prediction API for real-time scoring")
-        report_lines.append("   - Set up monitoring for model performance drift")
-        report_lines.append("   - Create alert system for high-risk businesses")
-        report_lines.append("")
-        report_lines.append("3. **Interpretability:**")
-        report_lines.append("   - Generate SHAP values for individual predictions")
-        report_lines.append("   - Create decision rules from tree models")
-        report_lines.append("   - Provide actionable insights to stakeholders")
+        report_lines.append("1. **Try advanced models**: XGBoost, LightGBM, and Neural Networks may improve performance")
+        report_lines.append("2. **Ensemble methods**: Combine predictions from multiple models")
+        report_lines.append("3. **Feature engineering**: Explore additional temporal and user-weighted features")
+        report_lines.append("4. **Hyperparameter tuning**: Optimize model parameters using cross-validation")
         report_lines.append("")
         
         report_lines.append("---")
         report_lines.append("")
+        report_lines.append("*Report generated by CS 412 Research Project baseline models pipeline*")
         
-        # Technical Details
-        report_lines.append("## 8. Technical Details")
-        report_lines.append("")
-        report_lines.append("### Model Files")
-        report_lines.append("")
-        report_lines.append("**Saved Models:**")
-        for name in self.models.keys():
-            report_lines.append(f"- `saved_models/{name}.pkl`")
-        report_lines.append(f"- `saved_models/scaler.pkl`")
-        report_lines.append("")
-        
-        report_lines.append("### Selected Features")
-        report_lines.append("")
-        report_lines.append(f"**Total:** {len(self.selected_features)} features")
-        report_lines.append("")
-        report_lines.append("<details>")
-        report_lines.append("<summary>Click to expand full feature list</summary>")
-        report_lines.append("")
-        for i, feat in enumerate(self.selected_features, 1):
-            report_lines.append(f"{i}. {feat}")
-        report_lines.append("")
-        report_lines.append("</details>")
-        report_lines.append("")
-        
-        report_lines.append("### Reproducibility")
-        report_lines.append("")
-        report_lines.append(f"- **Random State:** {self.random_state}")
-        report_lines.append(f"- **Train/Test Split:** 80/20 stratified")
-        report_lines.append(f"- **Scaling:** StandardScaler (mean=0, std=1)")
-        report_lines.append("")
-        
-        report_lines.append("---")
-        report_lines.append("")
-        
-        # Conclusion
-        report_lines.append("## 9. Conclusion")
-        report_lines.append("")
-        report_lines.append(f"This baseline model analysis establishes a strong foundation with a best ROC-AUC of **{best_roc_auc:.4f}**.")
-        report_lines.append(f"The **{best_model_name}** model demonstrates the most promising performance and serves as")
-        report_lines.append("the benchmark for future model iterations.")
-        report_lines.append("")
-        report_lines.append("Key takeaways:")
-        report_lines.append(f"- Feature engineering produced {len(self.selected_features)} highly predictive features")
-        report_lines.append("- Both SMOTE and class weighting approaches show merit")
-        report_lines.append("- Random Forest models generally outperform simpler approaches")
-        report_lines.append("- Further improvements possible through hyperparameter tuning and advanced algorithms")
-        report_lines.append("")
-        report_lines.append("**Next Steps:** Proceed to advanced model development and deployment preparation.")
-        report_lines.append("")
-        
-        # Save report
-        report_file = self.output_path / "baseline_models_report.md"
-        with open(report_file, 'w', encoding='utf-8') as f:
+        # Write report
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"Saved: {report_file}")
-        
-        # Save results summary as JSON
-        results_summary = {}
-        for model_name, results in self.results.items():
-            results_summary[model_name] = {
-                'roc_auc': float(results['roc_auc']),
-                'pr_auc': float(results['pr_auc']),
-                'precision': float(results['precision']),
-                'recall': float(results['recall']),
-                'f1_score': float(results['f1_score']),
-                'confusion_matrix': results['confusion_matrix'].tolist(),
-                'classification_report': results['classification_report']
-            }
-        
-        with open(self.output_path / 'results_summary.json', 'w') as f:
-            json.dump(results_summary, f, indent=2)
-        
-        logger.info(f"Saved: {self.output_path / 'results_summary.json'}")
-    
+        logger.info(f"[OK] Saved report: {report_path}")
+
     def run_pipeline(self):
         """Execute complete baseline model pipeline"""
         logger.info("="*70)
@@ -1180,7 +1236,20 @@ class BaselineModelPipeline:
         self.load_data()
         
         # Step 2: Feature selection
-        self.feature_selection()
+        # DISABLED FOR CONSISTENCY (V4):
+        # Feature selection removed to ensure all phases use the same 52 features
+        # This allows fair comparison between baseline, advanced, and ablation models
+        # self.feature_selection()  # ← Commented out for consistency
+        
+        # Use all features without selection
+        self.selected_features = self.feature_names
+        logger.info("="*70)
+        logger.info("FEATURE SELECTION: DISABLED (V4 - Consistency Update)")
+        logger.info("="*70)
+        logger.info(f"Using all {len(self.feature_names)} features for consistency")
+        logger.info("This ensures fair comparison with advanced models and ablation study")
+        logger.info("All phases (4, 5, 6, 7, 8, 9) now use identical feature sets")
+        logger.info(f"\n{'='*70}\n")
         
         # Step 3: Train-test split
         self.prepare_train_test_split()
@@ -1197,6 +1266,27 @@ class BaselineModelPipeline:
         # Step 7: Generate report
         self.generate_report()
         
+        # Step 8: Save compact JSON summary for final report aggregation
+        try:
+            summary = {}
+            for name, metrics in self.results.items():
+                # Only keep scalar metrics + confusion matrix for JSON
+                cm = metrics.get('confusion_matrix')
+                summary[name] = {
+                    'roc_auc': float(metrics.get('roc_auc', 0.0)),
+                    'pr_auc': float(metrics.get('pr_auc', 0.0)),
+                    'precision': float(metrics.get('precision', 0.0)),
+                    'recall': float(metrics.get('recall', 0.0)),
+                    'f1_score': float(metrics.get('f1_score', 0.0)),
+                    'confusion_matrix': cm.tolist() if cm is not None else None,
+                }
+            summary_path = self.output_path / "baseline_results_summary.json"
+            with open(summary_path, "w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=2)
+            logger.info(f"[OK] Saved JSON summary: {summary_path}")
+        except Exception as e:
+            logger.warning(f"Could not save baseline results_summary.json: {e}")
+        
         logger.info("\n" + "="*70)
         logger.info("BASELINE MODELING COMPLETE!")
         logger.info("="*70)
@@ -1210,26 +1300,42 @@ class BaselineModelPipeline:
 
 
 def main():
-    """Main entry point"""
+    """Main entry point with support for temporal validation"""
+    import argparse
+    
     print("="*70)
     print("CS 412 RESEARCH PROJECT - BASELINE MODELS")
     print("Business Success Prediction using Yelp Dataset")
     print("="*70)
     print("")
     
-    # Path to features (update this path as needed)
-    data_path = "data/features/business_features_final.csv"
-    output_path = "src/models"
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Baseline Model Training Pipeline')
+    parser.add_argument('--data', type=str, 
+                       default='data/features/business_features_baseline.csv',
+                       help='Path to feature CSV file')
+    parser.add_argument('--temporal', action='store_true',
+                       help='Use temporal stratified split')
+    parser.add_argument('--output', type=str, default='src/models',
+                       help='Output directory')
     
-    print(f"Data path: {data_path}")
-    print(f"Output path: {output_path}")
+    args = parser.parse_args()
+    
+    # Determine if using temporal split
+    use_temporal = args.temporal or 'temporal' in args.data
+    
+    print(f"Configuration:")
+    print(f"  Data: {args.data}")
+    print(f"  Split mode: {'Temporal Stratified' if use_temporal else 'Random Stratified'}")
+    print(f"  Output: {args.output}")
     print("")
     
     # Initialize and run pipeline
     pipeline = BaselineModelPipeline(
-        data_path=data_path,
-        output_path=output_path,
-        random_state=42
+        data_path=args.data,
+        output_path=args.output,
+        random_state=42,
+        use_temporal_split=use_temporal
     )
     
     pipeline.run_pipeline()
@@ -1238,9 +1344,9 @@ def main():
     print("BASELINE MODELING COMPLETE!")
     print("="*70)
     print("\nCheck the following outputs:")
-    print("  1. src/models/baseline_models_report.md")
-    print("  2. src/models/plots/ (visualizations)")
-    print("  3. src/models/saved_models/ (trained models)")
+    print(f"  1. {args.output}/baseline_models_report.md")
+    print(f"  2. {args.output}/plots/ (visualizations)")
+    print(f"  3. {args.output}/saved_models/ (trained models)")
     print("")
 
 

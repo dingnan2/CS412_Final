@@ -1,95 +1,95 @@
-# CS 412 Research Project: Business Success Prediction using Yelp Dataset
+# CS 412 Research Project: Business Success Prediction
+
+## Team Members
+- Adeniran Coker
+- Ju-Bin Choi
+- Carmen Zheng
 
 ## Project Overview
 
-This project predicts restaurant business success through a temporal-aware framework that jointly predicts business survival and future rating trajectories. The framework implements a **User-weighted Ensemble Framework** with multi-level classification to handle the complexity of business success prediction.
+This project predicts business success (open/closed status) 6-12 months in advance
+using the Yelp dataset. We introduce novel methods for:
 
-## Team Members
+1. **User Credibility Weighting**: Weight reviews by reviewer credibility
+2. **Temporal Validation**: Prevent data leakage in time-series prediction
+3. **Label Inference**: Infer historical closure dates from review patterns
 
-- **Adeniran Coker** (ac171) - Ph.D Civil Engineering
-- **Ju-Bin Choi** (jubinc2) - Master of Computer Science  
-- **Carmen Zheng** (dingnan2) - Master of Computer Science
-
-## Dataset
-
-- **Source**: Yelp Dataset (150K+ businesses, 8M+ reviews, 2M+ users)
-- **Size**: ~9.5 GB total (reviews: 5.3 GB, users: 3.3 GB, business: 118 MB, check-ins: 287 MB, tips: 181 MB)
-- **Format**: JSON files
-
-## Project Structure
+## Repository Structure
 
 ```
-├── data/                    # Raw and processed data
-│   ├── raw/                # Original Yelp dataset files
-│   ├── processed/          # Cleaned and feature-engineered data
-│   └── samples/            # Sample data for testing
-├── src/                    # Source code
-│   ├── data_processing/    # Data loading and preprocessing
-│   ├── feature_engineering/ # Feature extraction and engineering
-│   ├── models/             # Machine learning models
-│   ├── evaluation/         # Evaluation metrics and validation
+CS412_Final_Project/
+├── data/
+│   ├── processed/          # Cleaned data
+│   └── features/           # Engineered features
+├── src/
+│   ├── data_processing/    # Phase 1-2: Data cleaning, EDA
+│   ├── feature_engineering/# Phase 3: Feature engineering
+│   ├── models/             # Phase 4-6: Model training
+│   ├── evaluation/         # Phase 7-8: Ablation, case studies
+│   ├── reporting/          # Phase 9: Final report generation
 │   └── utils/              # Utility functions
-├── notebooks/              # Jupyter notebooks for analysis
-├── config/                 # Configuration files
-├── results/                # Model outputs and results
-├── docs/                   # Documentation
-└── tests/                  # Unit tests
+├── docs/
+│   ├── final_report.md     # Final report (markdown)
+│   ├── final_report.tex    # Final report (LaTeX)
+│   └── figures/            # All figures
+└── README.md
 ```
 
-## Methodology
+## Quick Start
 
-### Phase 1: Feature Engineering
-- Sentiment analysis from reviews
-- Rating velocity and temporal trends
-- Review volume metrics
-- Business attribute encoding
-- User engagement patterns
-
-### Phase 2: Novel Framework Development
-- **User-weighted Aggregation**: Weight users by platform tenure and usefulness votes
-- **Multi-level Classification**: Category-specific models
-- **Ensemble Architecture**: Combine Random Forest, XGBoost, and Neural Networks
-
-### Phase 3: Model Training and Validation
-- Stratified sampling (80/20 split)
-- K-fold cross-validation
-- Hyperparameter optimization
-
-### Phase 4: Evaluation and Analysis
-- ROC-AUC, precision/recall, F1-scores
-- Multi-task analysis
-- Feature importance analysis
-
-## Installation
-
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Download Yelp dataset to `data/raw/`
-4. Run preprocessing: `python src/data_processing/preprocess.py`
-
-## Usage
-
+### Prerequisites
 ```bash
-# Run baseline models
-python src/models/baseline_models.py
-
-# Train ensemble framework
-python src/models/ensemble_framework.py
-
-# Evaluate models
-python src/evaluation/evaluate_models.py
+pip install pandas numpy scikit-learn matplotlib seaborn
+pip install xgboost lightgbm vaderSentiment
 ```
 
-## Milestones
+### Run Complete Pipeline
+```bash
+# Phase 1: Data preprocessing
+python src/data_processing/data_preprocessing.py
 
-- **Stage 1**: Data Preparation and EDA (Sept 16 - Sept 30)
-- **Stage 2**: Baseline Implementation (Oct 1 - Oct 15)  
-- **Stage 3**: Advanced Framework Development 
-- **Stage 4**: Model Evaluation and Analysis 
-- **Stage 5**: Final Report and Documentation
+# Phase 2: EDA
+python src/data_processing/EDA_analysis.py
 
-## Challenges & Mitigation
+# Phase 3: Feature engineering (temporal mode)
+python src/feature_engineering/feature_eng.py --temporal --years 2012-2020
 
-1. **Data Imbalance**: Use stratified sampling and SMOTE
-2. **High-Dimensional Features**: Apply dimensionality reduction
-3. **Computational Complexity**: Optimize with efficient implementations
+# Phase 4: Baseline models
+python src/models/baseline_models.py --temporal
+
+# Phase 5: Temporal validation
+python src/models/temporal_validation.py
+
+# Phase 6: Advanced models
+python src/models/advanced_models.py
+
+# Phase 7: Ablation study
+python src/evaluation/ablation_study.py
+
+# Phase 8: Case studies
+python src/evaluation/case_study.py
+
+# Phase 9: Generate final report
+python src/reporting/generate_final_report.py
+```
+
+## Key Results
+
+- **Best Model**: Ensemble (Stacking) with ROC-AUC = 0.82
+- **Temporal Leakage Impact**: 15-point drop after correction (0.95 → 0.80)
+- **Most Important Features**: User credibility, review recency, temporal trends
+- **User Credibility Impact**: +3% improvement in ROC-AUC
+
+## Reports
+
+All reports are in `docs/`:
+- `final_report.md`: Comprehensive project report
+- `final_report.tex`: LaTeX version for submission
+- Phase-specific reports in respective directories
+
+## Contact
+
+For questions or issues, contact:
+- Adeniran Coker: acoker3@illinois.edu
+- Ju-Bin Choi: jchoi80@illinois.edu
+- Carmen Zheng: dzheng8@illinois.edu

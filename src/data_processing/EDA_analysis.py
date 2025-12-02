@@ -404,13 +404,36 @@ class EDAAnalyzer:
         logger.info("Saved: plots/review_rating_velocity.png")
 
         # Sentiment analysis (if available)
+        # OPTIMIZED: Save sentiment scores to CSV for reuse in Phase 3 (feature engineering)
         if VADER_AVAILABLE:
             try:
                 logger.info("Running VADER sentiment over reviews (this can take time)...")
+                logger.info("  Sentiment scores will be saved to data/processed/review_sentiment.csv for Phase 3 reuse")
                 analyzer = SentimentIntensityAnalyzer()
-                sentiments = df['text'].fillna('').apply(lambda t: analyzer.polarity_scores(str(t))['compound'])
-                df_sent = df[['review_id', 'date']].copy()
+                
+                # Compute sentiment in batches to show progress
+                n_reviews = len(df)
+                batch_size = 100000
+                sentiments = []
+                
+                for start in range(0, n_reviews, batch_size):
+                    end = min(start + batch_size, n_reviews)
+                    batch_texts = df['text'].iloc[start:end].fillna('')
+                    batch_sentiments = batch_texts.apply(lambda t: analyzer.polarity_scores(str(t))['compound'])
+                    sentiments.extend(batch_sentiments.tolist())
+                    logger.info(f"  Processed {end:,}/{n_reviews:,} reviews ({end/n_reviews*100:.1f}%)")
+                
+                # Create sentiment DataFrame with review_id for joining
+                df_sent = df[['review_id', 'business_id', 'date']].copy()
                 df_sent['sentiment'] = sentiments
+                
+                # [SAVE] SENTIMENT TO CSV FOR PHASE 3 REUSE
+                sentiment_output_path = self.processed_path / 'review_sentiment.csv'
+                df_sent.to_csv(sentiment_output_path, index=False)
+                logger.info(f"  [OK] Saved sentiment scores to: {sentiment_output_path}")
+                logger.info(f"    (Phase 3 will load this instead of re-computing VADER)")
+                
+                # Plot monthly sentiment trend
                 monthly_sent = df_sent.assign(year_month=df_sent['date'].dt.to_period('M')).groupby('year_month')['sentiment'].mean()
                 monthly_sent.index = monthly_sent.index.astype(str)
                 plt.figure(figsize=(14, 5))
@@ -709,11 +732,11 @@ class EDAAnalyzer:
         report_lines.append("### Figure: Correlation Analysis")
         report_lines.append("![Correlation Analysis](./plots/correlation_analysis.png)")
         report_lines.append("")
-        report_lines.append("✓ Class Imbalance: ~80% open, ~20% closed - Need stratified sampling/SMOTE")
-        report_lines.append("✓ Text Data: Reviews contain rich text - Sentiment analysis needed")
-        report_lines.append("✓ Temporal Patterns: Reviews span multiple years - Temporal features important")
-        report_lines.append("✓ User Weighting: High variance in user credibility - User weighting critical")
-        report_lines.append("✓ Geographic Variation: Success rates vary by state/city - Location features needed")
+        report_lines.append("[OK] Class Imbalance: ~80% open, ~20% closed - Need stratified sampling/SMOTE")
+        report_lines.append("[OK] Text Data: Reviews contain rich text - Sentiment analysis needed")
+        report_lines.append("[OK] Temporal Patterns: Reviews span multiple years - Temporal features important")
+        report_lines.append("[OK] User Weighting: High variance in user credibility - User weighting critical")
+        report_lines.append("[OK] Geographic Variation: Success rates vary by state/city - Location features needed")
         report_lines.append("")
 
         report_text = "\n".join(report_lines)

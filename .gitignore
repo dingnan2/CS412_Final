@@ -87,3 +87,11 @@ data/raw/
 data/processed/
 data/features
 src/models/saved_models
+docs/
+logs/
+*.png
+*.csv
+*.json
+
+*.md
+!README.md

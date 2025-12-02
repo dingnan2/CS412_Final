@@ -1,29 +1,38 @@
 """
 Feature Engineering: Extract and engineer features for business success prediction.
 
-This module implements the feature engineering pipeline as specified in Phase 1
-of the research proposal, including:
+CRITICAL UPDATES (Temporal Validation Support):
+- Added support for temporal validation with cutoff dates
+- Removed leaky features (days_since_last_review)
+- Fixed temporal window calculations to prevent future information leakage
+- Added metadata columns for temporal split stratification
+- Support for generating features at multiple cutoff dates
+
+This module implements the feature engineering pipeline with:
 - Business static features
 - Review aggregation features  
 - Sentiment features
 - User-weighted features
-- Temporal dynamics features
+- Temporal dynamics features (CORRECTED for temporal leakage)
 - Category/Location features
-
-All processing uses chunked methods to handle large datasets efficiently.
 """
 
 import pandas as pd
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List
 import json
 import gc
 import warnings
 from datetime import datetime, timedelta
 
 warnings.filterwarnings('ignore')
+
+# Import utility functions
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.temporal_utils import filter_reviews_by_cutoff, compute_temporal_window
 
 try:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -37,7 +46,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('feature_engineering.log'),
+        logging.FileHandler('logs/feature_engineering.log'),
         logging.StreamHandler()
     ]
 )
@@ -49,16 +58,37 @@ class FeatureEngineer:
     Comprehensive feature engineering for business success prediction.
     
     Design Principles:
-    1. No data leakage - only use historical information
+    1. No data leakage - only use historical information up to cutoff_date
     2. Chunked processing for memory efficiency
     3. Robust aggregations for skewed distributions
     4. User credibility weighting as novel contribution
-    5. Temporal dynamics with 3-month windows
+    5. Temporal dynamics with proper windowing
+    
+    NEW: Temporal Validation Support
+    - Can generate features for multiple cutoff dates
+    - Adds metadata columns for temporal stratification
+    - Removes leaky features automatically
     """
     
     def __init__(self, 
                  processed_path: str = "data/processed",
-                 output_path: str = "data/features"):
+                 output_path: str = "data/features",
+                 use_temporal_validation: bool = False,
+                 cutoff_dates: Optional[List[str]] = None,
+                 prediction_years: Optional[List[int]] = None):
+        """
+        Initialize feature engineer with temporal validation support.
+        
+        Args:
+            processed_path: Path to processed data
+            output_path: Path to save features
+            use_temporal_validation: If True, apply temporal constraints
+            cutoff_dates: List of cutoff dates (strings like '2020-12-31')
+                         If None and use_temporal_validation=True, will generate
+                         cutoffs based on prediction_years
+            prediction_years: List of years to generate cutoffs for (e.g., [2012, 2013, ...])
+                            Will create cutoffs as YYYY-12-31 for each year
+        """
         self.processed_path = Path(processed_path)
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
@@ -67,16 +97,42 @@ class FeatureEngineer:
         self.category_path = self.output_path / "feature_categories"
         self.category_path.mkdir(parents=True, exist_ok=True)
         
-        # Reference date for temporal calculations (dataset end date)
-        self.reference_date = pd.Timestamp('2022-01-19')
+        # Temporal validation settings
+        self.use_temporal_validation = use_temporal_validation
+        
+        # Determine cutoff dates
+        if use_temporal_validation:
+            if cutoff_dates is not None:
+                # Use provided cutoff dates
+                self.cutoff_dates = [pd.Timestamp(d) for d in cutoff_dates]
+            elif prediction_years is not None:
+                # Generate cutoffs from years (end of each year)
+                self.cutoff_dates = [pd.Timestamp(f'{year}-12-31') for year in prediction_years]
+            else:
+                # Default: single cutoff at 2020-12-31
+                self.cutoff_dates = [pd.Timestamp('2020-12-31')]
+                logger.warning("No cutoff_dates or prediction_years provided, using default: 2020-12-31")
+            
+            logger.info(f"Temporal validation enabled with {len(self.cutoff_dates)} cutoff dates")
+            logger.info(f"  Cutoffs: {[d.date() for d in self.cutoff_dates]}")
+        else:
+            # No temporal validation - use dataset end date as reference
+            self.cutoff_dates = [pd.Timestamp('2022-01-19')]
+            logger.info("Temporal validation disabled - using full dataset (reference: 2022-01-19)")
         
         # Data containers
         self.business_df = None
         self.user_df = None
+        self.reviews_df = None  # Will load in chunks, but keep reference
         
         # Feature tracking
         self.feature_summary = {}
         
+        # Leaky features to remove in temporal validation mode
+        self.leaky_features = [
+            'days_since_last_review',  # Direct encoding of closure
+        ]
+    
     def load_data(self):
         """Load cleaned business and user data"""
         logger.info("="*70)
@@ -88,7 +144,7 @@ class FeatureEngineer:
         self.business_df = pd.read_csv(business_path)
         logger.info(f"Loaded business data: {self.business_df.shape}")
         
-        # Load user data (will need for credibility weights)
+        # Load user data (for credibility weights)
         user_path = self.processed_path / "user_clean.csv"
         logger.info("Loading user data in chunks...")
         chunks = []
@@ -97,9 +153,23 @@ class FeatureEngineer:
         self.user_df = pd.concat(chunks, ignore_index=True)
         logger.info(f"Loaded user data: {self.user_df.shape}")
         
-        # Ensure datetime columns
-        self.user_df['yelping_since'] = pd.to_datetime(self.user_df['yelping_since'])
+        # OPTIMIZATION: Load pre-computed sentiment scores from Phase 2 (EDA)
+        sentiment_path = self.processed_path / "review_sentiment.csv"
+        if sentiment_path.exists():
+            logger.info("Loading pre-computed sentiment scores from Phase 2...")
+            self.sentiment_df = pd.read_csv(sentiment_path)
+            logger.info(f"[OK] Loaded pre-computed sentiment: {self.sentiment_df.shape}")
+            logger.info(f"  (Skipping VADER computation in feature engineering)")
+            self.use_precomputed_sentiment = True
+        else:
+            logger.warning("Pre-computed sentiment not found at: {sentiment_path}")
+            logger.warning("Will compute sentiment on-the-fly (slower)")
+            self.sentiment_df = None
+            self.use_precomputed_sentiment = False
         
+        # Note: Reviews will be loaded in chunks during feature computation
+        logger.info("Review data will be loaded in chunks during processing")
+
     def create_static_features(self) -> pd.DataFrame:
         """
         Create static business features (Category A).
@@ -261,377 +331,601 @@ class FeatureEngineer:
         
         return credibility_series
     
-    def create_review_features_chunked(self, user_credibility: pd.Series) -> pd.DataFrame:
+    def _compute_review_features_single_business(self,
+                                                business_id: str,
+                                                reviews: pd.DataFrame,
+                                                user_credibility: Dict,
+                                                sentiment_analyzer,
+                                                cutoff_date: pd.Timestamp,
+                                                user_info_dict: Dict = None) -> Optional[Dict]:
         """
-        Create all review-based features using chunked processing.
+        Compute review-based features for a single business at a specific cutoff date.
         
-        Processes review data in chunks and accumulates statistics.
+        This is the core feature computation function, now WITH temporal awareness.
         
-        Features created:
-        - Category B: Review Aggregation (15 features)
-        - Category C: Sentiment (8 features)
-        - Category D: User-Weighted (10 features)
-        - Category E: Temporal Dynamics (8 features)
+        Args:
+            business_id: ID of the business
+            reviews: Reviews for this business (already filtered to cutoff_date)
+            user_credibility: Dict mapping user_id to credibility score
+            sentiment_analyzer: VADER analyzer or None
+            cutoff_date: Reference date for feature computation
+            user_info_dict: Pre-built dict for O(1) user info lookup (OPTIMIZATION)
+            
+        Returns:
+            Dict of features or None if insufficient data
+        """
+        if len(reviews) < 3:
+            return None
         
-        Total: 41 features
+        features = {}
+        
+        # ============================================================
+        # Category B: Review Aggregation Features (9 features)
+        # ============================================================
+        
+        # Basic counts and stats
+        features['total_reviews'] = len(reviews)
+        features['avg_review_stars'] = reviews['stars'].mean()
+        features['std_review_stars'] = reviews['stars'].std()
+        
+        # Temporal features (relative to cutoff_date)
+        first_review_date = reviews['date'].min()
+        last_review_date = reviews['date'].max()
+        
+        # [FIXED] Use cutoff_date instead of current date
+        features['days_since_first_review'] = (cutoff_date - first_review_date).days
+        
+        # [FIXED] REMOVED: days_since_last_review (this was the main leaky feature)
+        # Instead, we'll use review recency as a ratio
+        days_since_last = (cutoff_date - last_review_date).days
+        days_active = (cutoff_date - first_review_date).days
+        features['review_recency_ratio'] = 1.0 - (days_since_last / max(days_active, 1))
+        # Ratio of 1.0 = very recent reviews, 0.0 = old reviews
+        
+        # Review frequency (corrected)
+        features['review_frequency'] = len(reviews) / max(days_active, 1)
+        
+        # Engagement metrics
+        features['total_useful_votes'] = reviews['useful'].sum()
+        features['avg_useful_per_review'] = reviews['useful'].mean()
+        
+        # ============================================================
+        # Category C: Sentiment Features (8 features)
+        # OPTIMIZED: Use pre-computed sentiment when available
+        # ============================================================
+        
+        # Check if pre-computed sentiment is available
+        has_precomputed = '_precomputed_sentiment' in reviews.columns and reviews['_precomputed_sentiment'].notna().any()
+        
+        if has_precomputed:
+            # [FAST PATH] Use pre-computed sentiment from Phase 2
+            sentiments = reviews['_precomputed_sentiment'].fillna(0.0).tolist()
+            text_lengths = reviews['text'].fillna('').str.len().tolist() if 'text' in reviews.columns else [0] * len(reviews)
+            
+            features['avg_sentiment'] = np.mean(sentiments) if sentiments else 0.0
+            features['std_sentiment'] = np.std(sentiments) if sentiments else 0.0
+            features['sentiment_volatility'] = np.std(sentiments) / (abs(np.mean(sentiments)) + 0.01) if sentiments else 0.0
+            
+            # Sentiment distribution
+            positive = sum(1 for s in sentiments if s > 0.05)
+            negative = sum(1 for s in sentiments if s < -0.05)
+            neutral = len(sentiments) - positive - negative
+            
+            features['pct_positive_reviews'] = positive / len(sentiments) if sentiments else 0.0
+            features['pct_negative_reviews'] = negative / len(sentiments) if sentiments else 0.0
+            features['pct_neutral_reviews'] = neutral / len(sentiments) if sentiments else 0.0
+            
+            # Text characteristics
+            features['avg_text_length'] = np.mean(text_lengths) if text_lengths else 0.0
+            features['std_text_length'] = np.std(text_lengths) if text_lengths else 0.0
+            
+            # Temporal sentiment trend (using cutoff-aware window)
+            recent_start, recent_end = compute_temporal_window(cutoff_date, 3, 'recent')
+            recent_reviews = reviews[(reviews['date'] >= recent_start) & (reviews['date'] <= recent_end)]
+            
+            if len(recent_reviews) > 0 and '_precomputed_sentiment' in recent_reviews.columns:
+                recent_sentiments = recent_reviews['_precomputed_sentiment'].fillna(0.0).tolist()
+                features['sentiment_recent_3m'] = np.mean(recent_sentiments) if recent_sentiments else features['avg_sentiment']
+            else:
+                features['sentiment_recent_3m'] = features['avg_sentiment']
+        
+        elif sentiment_analyzer and 'text' in reviews.columns:
+            # SLOW PATH: Compute sentiment on-the-fly with VADER
+            sentiments = []
+            text_lengths = []
+            
+            for text in reviews['text'].fillna(''):
+                if len(text) > 0:
+                    sentiment_score = sentiment_analyzer.polarity_scores(text)
+                    sentiments.append(sentiment_score['compound'])
+                    text_lengths.append(len(text))
+                else:
+                    sentiments.append(0.0)
+                    text_lengths.append(0)
+            
+            features['avg_sentiment'] = np.mean(sentiments) if sentiments else 0.0
+            features['std_sentiment'] = np.std(sentiments) if sentiments else 0.0
+            features['sentiment_volatility'] = np.std(sentiments) / (abs(np.mean(sentiments)) + 0.01) if sentiments else 0.0
+            
+            # Sentiment distribution
+            positive = sum(1 for s in sentiments if s > 0.05)
+            negative = sum(1 for s in sentiments if s < -0.05)
+            neutral = len(sentiments) - positive - negative
+            
+            features['pct_positive_reviews'] = positive / len(sentiments) if sentiments else 0.0
+            features['pct_negative_reviews'] = negative / len(sentiments) if sentiments else 0.0
+            features['pct_neutral_reviews'] = neutral / len(sentiments) if sentiments else 0.0
+            
+            # Text characteristics
+            features['avg_text_length'] = np.mean(text_lengths) if text_lengths else 0.0
+            features['std_text_length'] = np.std(text_lengths) if text_lengths else 0.0
+            
+            # Temporal sentiment trend (using cutoff-aware window)
+            recent_start, recent_end = compute_temporal_window(cutoff_date, 3, 'recent')
+            recent_reviews = reviews[(reviews['date'] >= recent_start) & (reviews['date'] <= recent_end)]
+            
+            if len(recent_reviews) > 0:
+                recent_sentiments = []
+                for text in recent_reviews['text'].fillna(''):
+                    if len(text) > 0:
+                        score = sentiment_analyzer.polarity_scores(text)
+                        recent_sentiments.append(score['compound'])
+                features['sentiment_recent_3m'] = np.mean(recent_sentiments) if recent_sentiments else features['avg_sentiment']
+            else:
+                features['sentiment_recent_3m'] = features['avg_sentiment']
+        
+        else:
+            # No sentiment analysis - fill with defaults
+            features.update({
+                'avg_sentiment': 0.0,
+                'std_sentiment': 0.0,
+                'sentiment_volatility': 0.0,
+                'pct_positive_reviews': 0.33,
+                'pct_negative_reviews': 0.33,
+                'pct_neutral_reviews': 0.34,
+                'avg_text_length': 0.0,
+                'std_text_length': 0.0,
+                'sentiment_recent_3m': 0.0
+            })
+        
+        # ============================================================
+        # Category D: User-Weighted Features (9 features)
+        # ============================================================
+        
+        # Get credibility scores for reviewers
+        reviewer_credibilities = []
+        weighted_ratings = []
+        weighted_sentiments = []
+        
+        for idx, review in reviews.iterrows():
+            user_id = review['user_id']
+            cred = user_credibility.get(user_id, 0.5)  # Default to 0.5 if not found
+            reviewer_credibilities.append(cred)
+            weighted_ratings.append(review['stars'] * cred)
+            
+            # Use sentiment if available
+            if 'avg_sentiment' in features and features['avg_sentiment'] != 0.0:
+                # Approximate sentiment from stars
+                sentiment_approx = (review['stars'] - 3) / 2  # Scale to [-1, 1]
+                weighted_sentiments.append(sentiment_approx * cred)
+        
+        features['avg_reviewer_credibility'] = np.mean(reviewer_credibilities)
+        features['std_reviewer_credibility'] = np.std(reviewer_credibilities)
+        
+        # Weighted aggregations
+        total_cred = sum(reviewer_credibilities)
+        if total_cred > 0:
+            features['weighted_avg_rating'] = sum(weighted_ratings) / total_cred
+            features['weighted_sentiment'] = sum(weighted_sentiments) / total_cred if weighted_sentiments else 0.0
+        else:
+            features['weighted_avg_rating'] = features['avg_review_stars']
+            features['weighted_sentiment'] = features['avg_sentiment']
+        
+        # High credibility reviewers
+        high_cred_threshold = 0.7
+        features['pct_high_credibility_reviewers'] = sum(1 for c in reviewer_credibilities if c > high_cred_threshold) / len(reviewer_credibilities)
+        
+        # Weighted engagement
+        weighted_useful = sum(reviews['useful'] * reviews['user_id'].map(lambda u: user_credibility.get(u, 0.5)))
+        features['weighted_useful_votes'] = weighted_useful
+        
+        # Reviewer characteristics
+        # OPTIMIZED: Use pre-built dict instead of slow isin() on 2M row DataFrame
+        reviewer_ids = reviews['user_id'].unique()
+        
+        if user_info_dict is not None:
+            # O(1) lookup per reviewer - FAST!
+            tenures = []
+            experiences = []
+            for uid in reviewer_ids:
+                if uid in user_info_dict:
+                    tenures.append(user_info_dict[uid]['user_tenure_years'])
+                    experiences.append(user_info_dict[uid]['review_count'])
+            
+            if tenures:
+                features['avg_reviewer_tenure'] = np.mean(tenures)
+                features['avg_reviewer_experience'] = np.mean(experiences)
+            else:
+                features['avg_reviewer_tenure'] = 0.0
+                features['avg_reviewer_experience'] = 0.0
+        else:
+            # Fallback to slow method if dict not provided
+            reviewer_info = self.user_df[self.user_df['user_id'].isin(reviewer_ids)]
+        if len(reviewer_info) > 0:
+            features['avg_reviewer_tenure'] = reviewer_info['user_tenure_years'].mean()
+            features['avg_reviewer_experience'] = reviewer_info['review_count'].mean()
+        else:
+            features['avg_reviewer_tenure'] = 0.0
+            features['avg_reviewer_experience'] = 0.0
+        
+        # Reviewer diversity
+        features['review_diversity'] = len(reviewer_ids) / len(reviews)  # Unique reviewers ratio
+        
+        # ============================================================
+        # Category E: Temporal Dynamics Features (8 features)
+        # ============================================================
+        
+        # [FIXED] All temporal comparisons now use cutoff-aware windows
+        
+        # Define windows
+        recent_start, recent_end = compute_temporal_window(cutoff_date, 3, 'recent')
+        recent_reviews = reviews[(reviews['date'] >= recent_start) & (reviews['date'] <= recent_end)]
+        
+        # Early window (first 3 months of operation)
+        early_start = first_review_date
+        early_end = first_review_date + pd.DateOffset(months=3)
+        early_reviews = reviews[(reviews['date'] >= early_start) & (reviews['date'] <= early_end)]
+        
+        # Temporal comparisons
+        # [IMPROVED] Using difference instead of ratio to reduce noise
+        # Rationale: Ratios can explode when denominator is small; differences are more stable
+        if len(recent_reviews) >= 2:
+            recent_rating = recent_reviews['stars'].mean()
+            recent_engagement = recent_reviews['useful'].mean()
+            
+            # Use difference instead of ratio (more stable, less noise)
+            features['rating_recent_vs_all'] = recent_rating - features['avg_review_stars']
+            features['reviews_recent_3m_count'] = len(recent_reviews)
+            features['engagement_recent_vs_all'] = recent_engagement - features['avg_useful_per_review']
+            
+            if 'avg_sentiment' in features and features['avg_sentiment'] != 0.0:
+                # Use pre-computed sentiment if available, otherwise fall back to VADER
+                if '_precomputed_sentiment' in recent_reviews.columns and recent_reviews['_precomputed_sentiment'].notna().any():
+                    recent_sent = recent_reviews['_precomputed_sentiment'].fillna(0.0).mean()
+                elif sentiment_analyzer:
+                    recent_sent = np.mean([sentiment_analyzer.polarity_scores(text)['compound'] 
+                                          for text in recent_reviews['text'].fillna('') if len(text) > 0])
+                else:
+                    recent_sent = features['avg_sentiment']
+                # Use difference instead of ratio
+                features['sentiment_recent_vs_all'] = recent_sent - features['avg_sentiment']
+            else:
+                features['sentiment_recent_vs_all'] = 0.0
+        else:
+            features['rating_recent_vs_all'] = 0.0
+            features['reviews_recent_3m_count'] = 0
+            features['engagement_recent_vs_all'] = 0.0
+            features['sentiment_recent_vs_all'] = 0.0
+        
+        if len(early_reviews) >= 2 and len(recent_reviews) >= 2:
+            # Use difference instead of ratio
+            features['rating_recent_vs_early'] = recent_reviews['stars'].mean() - early_reviews['stars'].mean()
+        else:
+            features['rating_recent_vs_early'] = 0.0
+        
+        # Review momentum (trend over time)
+        # Calculate reviews per month over time
+        reviews_sorted = reviews.sort_values('date')
+        reviews_sorted['month'] = reviews_sorted['date'].dt.to_period('M')
+        monthly_counts = reviews_sorted.groupby('month').size()
+        
+        if len(monthly_counts) >= 3:
+            # Simple linear trend: positive = growing, negative = declining
+            x = np.arange(len(monthly_counts))
+            y = monthly_counts.values
+            trend = np.polyfit(x, y, 1)[0]  # Slope of linear fit
+            features['review_momentum'] = trend
+        else:
+            features['review_momentum'] = 0.0
+        
+        # Lifecycle stage classification
+        # Based on review activity pattern and age
+        age_months = days_active / 30
+        recent_review_rate = features['reviews_recent_3m_count'] / 3  # Reviews per month (recent)
+        overall_review_rate = features['total_reviews'] / max(age_months, 1)
+        
+        if age_months < 6:
+            lifecycle_stage = 0  # New
+        elif recent_review_rate > overall_review_rate * 1.2:
+            lifecycle_stage = 1  # Growing
+        elif recent_review_rate >= overall_review_rate * 0.8:
+            lifecycle_stage = 2  # Mature
+        else:
+            lifecycle_stage = 3  # Declining
+        
+        features['lifecycle_stage'] = lifecycle_stage
+        
+        # Rating trend (simple moving average difference)
+        if len(reviews) >= 10:
+            mid_point = len(reviews_sorted) // 2
+            first_half_rating = reviews_sorted.iloc[:mid_point]['stars'].mean()
+            second_half_rating = reviews_sorted.iloc[mid_point:]['stars'].mean()
+            features['rating_trend_3m'] = second_half_rating - first_half_rating
+        else:
+            features['rating_trend_3m'] = 0.0
+        
+        # ============================================================
+        # Category G: Feature Interactions (NEW - Enhanced Signals)
+        # ============================================================
+        # 
+        # Rationale:
+        # - Individual features capture main effects
+        # - Interactions capture synergistic effects
+        # - Example: High rating + High credibility reviewers = Strong signal
+        #           High rating + Low credibility reviewers = Weak signal
+        
+        # Interaction 1: Rating Quality × Reviewer Credibility
+        # High-quality ratings backed by credible reviewers are more reliable
+        if 'avg_review_stars' in features and 'avg_reviewer_credibility' in features:
+            features['rating_credibility_interaction'] = (
+                features['avg_review_stars'] * features['avg_reviewer_credibility']
+            )
+        
+        # Interaction 2: Momentum × Credibility
+        # Growth driven by high-credibility users is more reliable than low-credibility growth
+        if 'review_momentum' in features and 'avg_reviewer_credibility' in features:
+            features['momentum_credibility_interaction'] = (
+                features['review_momentum'] * features['avg_reviewer_credibility']
+            )
+        
+        # Interaction 3: Size × Activity
+        # Large businesses with high activity are different from small + high activity
+        if 'total_reviews' in features and 'review_frequency' in features:
+            features['size_activity_interaction'] = (
+                np.log1p(features['total_reviews']) * features['review_frequency']
+            )
+        
+        # Interaction 4: Recent Trend × Overall Quality
+        # Declining trend matters more for high-rated businesses
+        if 'rating_recent_vs_all' in features and 'avg_review_stars' in features:
+            features['trend_quality_interaction'] = (
+                features['rating_recent_vs_all'] * features['avg_review_stars']
+            )
+        
+        # Interaction 5: Engagement × Credibility
+        # Useful votes from credible users are more valuable
+        if 'total_useful_votes' in features and 'avg_reviewer_credibility' in features:
+            features['engagement_credibility_interaction'] = (
+                np.log1p(features['total_useful_votes']) * features['avg_reviewer_credibility']
+            )
+        
+        return features
+
+    def create_review_features_chunked(self, user_credibility: Dict) -> pd.DataFrame:
+        """
+        Create review-based features using TWO-PHASE chunked processing.
+        
+        FIXED: Previous implementation had a bug where reviews split across chunks
+        would result in incomplete feature computation. Now uses two-phase approach:
+        
+        Phase 1: Collect all reviews for each business (memory-efficient accumulation)
+        Phase 2: Compute features using complete review data
+        
+        This includes:
+        - Category B: Review aggregation features
+        - Category C: Sentiment features
+        - Category D: User-weighted features
+        - Category E: Temporal dynamics features (FIXED for leakage)
+        
+        Returns:
+            DataFrame with columns:
+            - business_id
+            - _cutoff_date (if temporal validation)
+            - _prediction_year (if temporal validation)
+            - all feature columns
         """
         logger.info("="*70)
-        logger.info("CREATING REVIEW-BASED FEATURES (CHUNKED)")
+        logger.info("CREATING REVIEW-BASED FEATURES (TWO-PHASE CHUNKED)")
         logger.info("="*70)
+        
+        if self.use_temporal_validation:
+            logger.info(f"Temporal validation mode: generating features for {len(self.cutoff_dates)} cutoff dates")
         
         review_path = self.processed_path / "review_clean.csv"
-        chunk_size = 100000
         
-        # Initialize sentiment analyzer if available
-        sentiment_analyzer = SentimentIntensityAnalyzer() if VADER_AVAILABLE else None
-        if not VADER_AVAILABLE:
-            logger.warning("VADER not available - sentiment features will be skipped")
+        # ================================================================
+        # OPTIMIZATION: Use pre-computed sentiment if available
+        # ================================================================
+        sentiment_analyzer = None
+        precomputed_sentiment = {}  # review_id -> sentiment score
         
-        # Initialize accumulators for different feature types
-        # Using lists to accumulate per-business statistics
-        business_stats = {}
+        if self.use_precomputed_sentiment and self.sentiment_df is not None:
+            logger.info("[OK] Using PRE-COMPUTED sentiment from Phase 2 (FAST)")
+            logger.info(f"  Loaded {len(self.sentiment_df):,} pre-computed sentiment scores")
+            # Create lookup dictionary for fast access
+            precomputed_sentiment = dict(zip(
+                self.sentiment_df['review_id'], 
+                self.sentiment_df['sentiment']
+            ))
+            logger.info("  Created sentiment lookup dictionary")
+        elif VADER_AVAILABLE:
+            sentiment_analyzer = SentimentIntensityAnalyzer()
+            logger.info("[WARN] Using VADER on-the-fly (slower - consider re-running Phase 2)")
+        else:
+            logger.warning("[FAIL] No sentiment available - features will be approximated from stars")
         
-        logger.info(f"Processing reviews in chunks of {chunk_size:,}...")
-        chunk_count = 0
+        # ================================================================
+        # PHASE 1: Collect all reviews per business
+        # ================================================================
+        logger.info("\n" + "="*70)
+        logger.info("PHASE 1: Collecting reviews per business")
+        logger.info("="*70)
+        
+        # Dictionary to accumulate reviews per business
+        # Key: business_id, Value: list of review dicts (only essential columns)
+        business_reviews_dict = {}
+        
+        # Essential columns to keep (minimize memory usage)
+        # Include review_id for sentiment lookup
+        essential_cols = ['review_id', 'business_id', 'user_id', 'stars', 'date', 'text', 'useful']
+        
+        chunk_size = 500000
+        chunk_num = 0
         total_reviews = 0
         
-        # Define temporal cutoffs (3 months before reference date)
-        cutoff_3m = self.reference_date - timedelta(days=90)
+        logger.info(f"Reading reviews in chunks of {chunk_size:,}...")
         
         for chunk in pd.read_csv(review_path, chunksize=chunk_size):
-            chunk_count += 1
+            chunk_num += 1
+            
+            # Only keep essential columns
+            available_cols = [c for c in essential_cols if c in chunk.columns]
+            chunk = chunk[available_cols]
+            
+            # Ensure date column is datetime
+            chunk['date'] = pd.to_datetime(chunk['date'], errors='coerce')
+            chunk = chunk.dropna(subset=['date'])
+            
+            # Add pre-computed sentiment if available
+            if precomputed_sentiment and 'review_id' in chunk.columns:
+                chunk['_precomputed_sentiment'] = chunk['review_id'].map(precomputed_sentiment)
+            
             total_reviews += len(chunk)
             
-            # Ensure datetime
-            chunk['date'] = pd.to_datetime(chunk['date'])
-            
-            # Calculate sentiment if available
-            if sentiment_analyzer:
-                def _safe_compound(text: str) -> float:
-                    try:
-                        return sentiment_analyzer.polarity_scores(text)['compound']
-                    except Exception:
-                        return 0.0
-                chunk['sentiment'] = chunk['text'].fillna('').apply(
-                    lambda t: _safe_compound(str(t))
-                )
-            else:
-                chunk['sentiment'] = 0.0
-            
-            # Add user credibility
-            chunk['user_credibility'] = chunk['user_id'].map(user_credibility).fillna(0)
-            
-            # Add temporal flags
-            chunk['is_recent_3m'] = chunk['date'] >= cutoff_3m
-            
-            # Calculate days from reference
-            chunk['days_from_ref'] = (self.reference_date - chunk['date']).dt.days
-            
-            # Process each business in chunk
+            # Accumulate reviews per business
             for business_id, group in chunk.groupby('business_id'):
-                if business_id not in business_stats:
-                    business_stats[business_id] = {
-                        'reviews': [],
-                        'dates': [],
-                        'stars': [],
-                        'useful': [],
-                        'funny_cool': [],
-                        'text_length': [],
-                        'sentiment': [],
-                        'user_credibility': [],
-                        'is_recent_3m': []
-                    }
+                if business_id not in business_reviews_dict:
+                    business_reviews_dict[business_id] = []
                 
-                # Accumulate data
-                stats = business_stats[business_id]
-                stats['reviews'].extend(group['review_id'].tolist())
-                stats['dates'].extend(group['date'].tolist())
-                stats['stars'].extend(group['stars'].tolist())
-                stats['useful'].extend(group['useful'].tolist())
-                stats['funny_cool'].extend(group['funny_cool'].tolist())
-                stats['text_length'].extend(group['text_length'].tolist())
-                stats['sentiment'].extend(group['sentiment'].tolist())
-                stats['user_credibility'].extend(group['user_credibility'].tolist())
-                stats['is_recent_3m'].extend(group['is_recent_3m'].tolist())
+                # Convert to list of dicts for memory efficiency
+                business_reviews_dict[business_id].extend(group.to_dict('records'))
             
-            if chunk_count % 10 == 0:
-                logger.info(f"  Processed {total_reviews:,} reviews, {len(business_stats):,} businesses")
+            logger.info(f"  [Chunk {chunk_num}] Processed {len(chunk):,} reviews, "
+                       f"Total businesses: {len(business_reviews_dict):,}")
             
-            # Clean up
+            # Memory cleanup
             del chunk
             gc.collect()
         
-        logger.info(f"[OK] Completed chunked processing: {total_reviews:,} reviews")
-        logger.info(f"[OK] Accumulated statistics for {len(business_stats):,} businesses")
+        # Clear sentiment lookup to free memory
+        del precomputed_sentiment
+        gc.collect()
         
-        # Now compute all features from accumulated statistics
-        logger.info("\nComputing aggregated features...")
+        logger.info(f"\nPhase 1 complete:")
+        logger.info(f"  Total reviews processed: {total_reviews:,}")
+        logger.info(f"  Total unique businesses: {len(business_reviews_dict):,}")
         
-        features_list = []
+        # ================================================================
+        # PHASE 2: Compute features using complete review data
+        # ================================================================
+        logger.info("\n" + "="*70)
+        logger.info("PHASE 2: Computing features from complete reviews")
+        logger.info("="*70)
         
-        for business_id, stats in business_stats.items():
-            # Convert lists to arrays for efficient computation
-            stars = np.array(stats['stars'])
-            dates = pd.Series(stats['dates'])
-            useful = np.array(stats['useful'])
-            funny_cool = np.array(stats['funny_cool'])
-            text_length = np.array(stats['text_length'])
-            sentiment = np.array(stats['sentiment'])
-            user_cred = np.array(stats['user_credibility'])
-            is_recent = np.array(stats['is_recent_3m'])
+        # ================================================================
+        # OPTIMIZATION: Pre-build user info lookup dictionary
+        # This changes O(n) isin() lookups to O(1) dict lookups
+        # ================================================================
+        logger.info("Building user info lookup dictionary...")
+        user_info_dict = {}
+        for _, row in self.user_df.iterrows():
+            user_info_dict[row['user_id']] = {
+                'user_tenure_years': row.get('user_tenure_years', 0.0),
+                'review_count': row.get('review_count', 0)
+            }
+        logger.info(f"  Created lookup for {len(user_info_dict):,} users")
+        
+        all_business_features = []
+        processed_count = 0
+        total_businesses = len(business_reviews_dict)
+        
+        for business_id, reviews_list in business_reviews_dict.items():
+            processed_count += 1
             
-            n_reviews = len(stars)
+            # Convert list of dicts back to DataFrame
+            business_reviews = pd.DataFrame(reviews_list)
+            business_reviews['date'] = pd.to_datetime(business_reviews['date'])
             
-            # Normalize user credibility weights (sum to 1 within business)
-            if user_cred.sum() > 0:
-                weights = user_cred / user_cred.sum()
-            else:
-                weights = np.ones(n_reviews) / n_reviews
+            # Log progress every 10000 businesses
+            if processed_count % 10000 == 0:
+                logger.info(f"  Processed {processed_count:,}/{total_businesses:,} businesses "
+                           f"({processed_count/total_businesses*100:.1f}%)")
             
-            feature_dict = {'business_id': business_id}
-            
-            # ========== CATEGORY B: REVIEW AGGREGATION (15 features) ==========
-            feature_dict['total_reviews'] = n_reviews
-            feature_dict['avg_review_stars'] = stars.mean()
-            feature_dict['std_review_stars'] = stars.std() if n_reviews > 1 else 0
-            
-            # Rating velocity (slope of rating over time)
-            if n_reviews > 1:
-                days_from_first = (dates - dates.min()).dt.days.values
-                if days_from_first.max() > 0:
-                    # Linear regression: rating ~ days
-                    rating_velocity = np.polyfit(days_from_first, stars, 1)[0]
-                    feature_dict['rating_velocity'] = rating_velocity
-                else:
-                    feature_dict['rating_velocity'] = 0
-            else:
-                feature_dict['rating_velocity'] = 0
-            
-            # Recent rating trend (3 months)
-            if is_recent.sum() > 0:
-                feature_dict['rating_trend_3m'] = stars[is_recent].mean()
-            else:
-                feature_dict['rating_trend_3m'] = feature_dict['avg_review_stars']
-            
-            # Review frequency and momentum
-            if n_reviews > 1:
-                timespan_days = (dates.max() - dates.min()).days
-                if timespan_days > 0:
-                    feature_dict['review_frequency'] = n_reviews / (timespan_days / 30.0)  # reviews/month
+            # If temporal validation, generate features for each cutoff date
+            if self.use_temporal_validation:
+                for cutoff_date in self.cutoff_dates:
+                    # Filter reviews up to cutoff
+                    historical_reviews = filter_reviews_by_cutoff(
+                        business_reviews, 
+                        cutoff_date
+                    )
                     
-                    # Momentum: compare recent vs historical frequency
-                    recent_count = is_recent.sum()
-                    if recent_count > 0:
-                        recent_freq = recent_count / 3.0  # 3 months
-                        hist_freq = feature_dict['review_frequency']
-                        feature_dict['review_momentum'] = recent_freq / (hist_freq + 1e-6)
-                    else:
-                        feature_dict['review_momentum'] = 0
-                else:
-                    feature_dict['review_frequency'] = 0
-                    feature_dict['review_momentum'] = 0
+                    # Skip if insufficient data at this cutoff
+                    if len(historical_reviews) < 3:
+                        continue
+                    
+                    # Check if business is still active at cutoff
+                    # (last review within 6 months of cutoff)
+                    last_review = historical_reviews['date'].max()
+                    days_since_last = (cutoff_date - last_review).days
+                    if days_since_last > 180:
+                        continue  # Business likely inactive
+                    
+                    # Compute features at this cutoff
+                    features = self._compute_review_features_single_business(
+                        business_id=business_id,
+                        reviews=historical_reviews,
+                        user_credibility=user_credibility,
+                        sentiment_analyzer=sentiment_analyzer,
+                        cutoff_date=cutoff_date,
+                        user_info_dict=user_info_dict
+                    )
+                    
+                    if features is not None:
+                        # Add temporal metadata
+                        features['business_id'] = business_id
+                        features['_cutoff_date'] = cutoff_date
+                        features['_prediction_year'] = cutoff_date.year
+                        all_business_features.append(features)
+            
             else:
-                feature_dict['review_frequency'] = 0
-                feature_dict['review_momentum'] = 0
-            
-            # Days since first/last review
-            feature_dict['days_since_first_review'] = (self.reference_date - dates.min()).days
-            feature_dict['days_since_last_review'] = (self.reference_date - dates.max()).days
-            
-            # Engagement metrics
-            feature_dict['total_useful_votes'] = useful.sum()
-            feature_dict['avg_useful_per_review'] = useful.mean()
-            feature_dict['total_funny_cool'] = funny_cool.sum()
-            
-            # Text features
-            feature_dict['avg_text_length'] = text_length.mean()
-            feature_dict['std_text_length'] = text_length.std() if n_reviews > 1 else 0
-            
-            # ========== CATEGORY C: SENTIMENT (8 features) ==========
-            if VADER_AVAILABLE:
-                feature_dict['avg_sentiment'] = sentiment.mean()
-                feature_dict['std_sentiment'] = sentiment.std() if n_reviews > 1 else 0
+                # No temporal validation - use all reviews
+                features = self._compute_review_features_single_business(
+                    business_id=business_id,
+                    reviews=business_reviews,
+                    user_credibility=user_credibility,
+                    sentiment_analyzer=sentiment_analyzer,
+                    cutoff_date=self.cutoff_dates[0],  # Use reference date
+                    user_info_dict=user_info_dict
+                )
                 
-                # Sentiment slope
-                if n_reviews > 1:
-                    days_from_first = (dates - dates.min()).dt.days.values
-                    if days_from_first.max() > 0:
-                        sentiment_slope = np.polyfit(days_from_first, sentiment, 1)[0]
-                        feature_dict['sentiment_slope'] = sentiment_slope
-                    else:
-                        feature_dict['sentiment_slope'] = 0
-                else:
-                    feature_dict['sentiment_slope'] = 0
-                
-                # Sentiment categories
-                feature_dict['pct_positive_reviews'] = (sentiment > 0.5).sum() / n_reviews
-                feature_dict['pct_negative_reviews'] = (sentiment < -0.5).sum() / n_reviews
-                feature_dict['pct_neutral_reviews'] = ((sentiment >= -0.5) & (sentiment <= 0.5)).sum() / n_reviews
-                
-                # Recent sentiment
-                if is_recent.sum() > 0:
-                    feature_dict['sentiment_recent_3m'] = sentiment[is_recent].mean()
-                else:
-                    feature_dict['sentiment_recent_3m'] = feature_dict['avg_sentiment']
-                
-                # Sentiment volatility (change in variance)
-                if is_recent.sum() > 1:
-                    recent_std = sentiment[is_recent].std()
-                    hist_std = feature_dict['std_sentiment']
-                    feature_dict['sentiment_volatility'] = abs(recent_std - hist_std)
-                else:
-                    feature_dict['sentiment_volatility'] = 0
-            else:
-                # Fill with zeros if VADER not available
-                for feat in ['avg_sentiment', 'std_sentiment', 'sentiment_slope',
-                           'pct_positive_reviews', 'pct_negative_reviews', 'pct_neutral_reviews',
-                           'sentiment_recent_3m', 'sentiment_volatility']:
-                    feature_dict[feat] = 0
+                if features is not None:
+                    features['business_id'] = business_id
+                    all_business_features.append(features)
             
-            # ========== CATEGORY D: USER-WEIGHTED (10 features) ==========
-            feature_dict['weighted_avg_rating'] = (stars * weights).sum()
-            
-            if VADER_AVAILABLE:
-                feature_dict['weighted_sentiment'] = (sentiment * weights).sum()
-            else:
-                feature_dict['weighted_sentiment'] = 0
-            
-            feature_dict['avg_reviewer_credibility'] = user_cred.mean()
-            feature_dict['std_reviewer_credibility'] = user_cred.std() if n_reviews > 1 else 0
-            
-            # High credibility reviewers (>75th percentile)
-            if n_reviews > 0:
-                credibility_75 = np.percentile(user_cred, 75)
-                feature_dict['pct_high_credibility_reviewers'] = (user_cred > credibility_75).sum() / n_reviews
-            else:
-                feature_dict['pct_high_credibility_reviewers'] = 0
-            
-            feature_dict['weighted_useful_votes'] = (useful * weights).sum()
-            
-            # Get user info (need to look up in user_df)
-            # For efficiency, we'll compute average reviewer tenure and experience
-            # This requires user_id which we didn't store - simplified version
-            feature_dict['avg_reviewer_tenure'] = 0  # Placeholder - would need user_id join
-            feature_dict['avg_reviewer_experience'] = 0  # Placeholder
-            
-            # Review diversity
-            unique_reviewers = len(set(stats['reviews']))  # Approximation
-            feature_dict['review_diversity'] = unique_reviewers / n_reviews if n_reviews > 0 else 0
-            
-            # Power user ratio (placeholder - would need full user info)
-            feature_dict['power_user_ratio'] = 0  # Placeholder
-            
-            # ========== CATEGORY E: TEMPORAL DYNAMICS (8 features) ==========
-            # Recent vs all-time comparisons
-            if is_recent.sum() > 0:
-                recent_avg_rating = stars[is_recent].mean()
-                feature_dict['rating_recent_vs_all'] = recent_avg_rating - feature_dict['avg_review_stars']
-                
-                # Recent vs early (first 3 months)
-                first_3m_date = dates.min() + timedelta(days=90)
-                is_early = dates <= first_3m_date
-                if is_early.sum() > 0:
-                    early_avg_rating = stars[is_early].mean()
-                    feature_dict['rating_recent_vs_early'] = recent_avg_rating - early_avg_rating
-                else:
-                    feature_dict['rating_recent_vs_early'] = 0
-                
-                if VADER_AVAILABLE:
-                    feature_dict['sentiment_recent_vs_all'] = sentiment[is_recent].mean() - feature_dict['avg_sentiment']
-                else:
-                    feature_dict['sentiment_recent_vs_all'] = 0
-            else:
-                feature_dict['rating_recent_vs_all'] = 0
-                feature_dict['rating_recent_vs_early'] = 0
-                feature_dict['sentiment_recent_vs_all'] = 0
-            
-            # Recent review counts
-            feature_dict['reviews_recent_3m_count'] = is_recent.sum()
-            
-            # Review frequency trend
-            if n_reviews > 1 and feature_dict['review_frequency'] > 0:
-                if is_recent.sum() > 0:
-                    recent_freq = is_recent.sum() / 3.0
-                    feature_dict['review_frequency_trend'] = recent_freq / feature_dict['review_frequency']
-                else:
-                    feature_dict['review_frequency_trend'] = 0
-            else:
-                feature_dict['review_frequency_trend'] = 0
-            
-            # Engagement recent vs all
-            if is_recent.sum() > 0:
-                recent_useful_avg = useful[is_recent].mean()
-                all_useful_avg = feature_dict['avg_useful_per_review']
-                if all_useful_avg > 0:
-                    feature_dict['engagement_recent_vs_all'] = recent_useful_avg / all_useful_avg
-                else:
-                    feature_dict['engagement_recent_vs_all'] = 1.0
-            else:
-                feature_dict['engagement_recent_vs_all'] = 1.0
-            
-            # Lifecycle stage (categorical based on review patterns)
-            timespan_days = feature_dict['days_since_first_review']
-            recent_activity = feature_dict['reviews_recent_3m_count']
-            
-            if timespan_days < 180:  # Less than 6 months old
-                lifecycle = 0  # New
-            elif recent_activity > n_reviews * 0.3:  # >30% reviews in last 3 months
-                lifecycle = 1  # Growing
-            elif recent_activity > 0:
-                lifecycle = 2  # Mature
-            else:
-                lifecycle = 3  # Declining
-            
-            feature_dict['lifecycle_stage'] = lifecycle
-            
-            features_list.append(feature_dict)
+            # Periodic memory cleanup
+            if processed_count % 50000 == 0:
+                gc.collect()
+        
+        # Clear the reviews dictionary to free memory
+        del business_reviews_dict
+        gc.collect()
         
         # Convert to DataFrame
-        review_features = pd.DataFrame(features_list)
+        review_features_df = pd.DataFrame(all_business_features)
         
-        logger.info(f"[OK] Created {review_features.shape[1] - 1} review-based features")
-        logger.info(f"  - Review Aggregation: 15 features")
-        logger.info(f"  - Sentiment: {8 if VADER_AVAILABLE else 0} features")
-        logger.info(f"  - User-Weighted: 10 features")
-        logger.info(f"  - Temporal Dynamics: 8 features")
+        logger.info(f"\n{'='*70}")
+        logger.info(f"REVIEW FEATURES COMPLETE")
+        logger.info(f"{'='*70}")
+        logger.info(f"Total feature rows: {len(review_features_df):,}")
         
-        # Save separate category files
-        # Split into categories for ablation studies
-        review_agg_cols = ['business_id', 'total_reviews', 'avg_review_stars', 'std_review_stars',
-                          'rating_velocity', 'rating_trend_3m', 'review_frequency', 'review_momentum',
-                          'days_since_first_review', 'days_since_last_review', 'total_useful_votes',
-                          'avg_useful_per_review', 'total_funny_cool', 'avg_text_length', 'std_text_length']
+        if not review_features_df.empty:
+            logger.info(f"Unique businesses: {review_features_df['business_id'].nunique():,}")
+            
+            if self.use_temporal_validation and review_features_df['business_id'].nunique() > 0:
+                logger.info(f"Average rows per business: {len(review_features_df) / review_features_df['business_id'].nunique():.1f}")
         
-        sentiment_cols = ['business_id', 'avg_sentiment', 'std_sentiment', 'sentiment_slope',
-                         'pct_positive_reviews', 'pct_negative_reviews', 'pct_neutral_reviews',
-                         'sentiment_recent_3m', 'sentiment_volatility']
-        
-        user_weighted_cols = ['business_id', 'weighted_avg_rating', 'weighted_sentiment',
-                             'avg_reviewer_credibility', 'std_reviewer_credibility',
-                             'pct_high_credibility_reviewers', 'weighted_useful_votes',
-                             'avg_reviewer_tenure', 'avg_reviewer_experience',
-                             'review_diversity', 'power_user_ratio']
-        
-        temporal_cols = ['business_id', 'rating_recent_vs_all', 'rating_recent_vs_early',
-                        'sentiment_recent_vs_all', 'reviews_recent_3m_count',
-                        'review_frequency_trend', 'engagement_recent_vs_all', 'lifecycle_stage']
-        
-        review_features[review_agg_cols].to_csv(
-            self.category_path / "review_aggregation_features.csv", index=False
-        )
-        review_features[sentiment_cols].to_csv(
-            self.category_path / "sentiment_features.csv", index=False
-        )
-        review_features[user_weighted_cols].to_csv(
-            self.category_path / "user_weighted_features.csv", index=False
-        )
-        review_features[temporal_cols].to_csv(
-            self.category_path / "temporal_features.csv", index=False
-        )
-        
-        logger.info(f"[OK] Saved separate feature category files")
-        
-        return review_features
+        return review_features_df  
     
     def create_location_features(self, business_features: pd.DataFrame) -> pd.DataFrame:
         """
@@ -701,260 +995,369 @@ class FeatureEngineer:
         
         return features
     
-    def merge_all_features(self,
+    def merge_all_features(self, 
                           static_features: pd.DataFrame,
                           review_features: pd.DataFrame,
                           location_features: pd.DataFrame) -> pd.DataFrame:
         """
-        Merge all feature categories into single dataset.
+        Merge all feature categories into final dataset with temporal metadata.
         
+        Args:
+            static_features: Category A features
+            review_features: Categories B, C, D, E features
+            location_features: Category F features
+            
         Returns:
-            Final merged dataset with all features
+            Final merged DataFrame with all features and metadata
         """
         logger.info("="*70)
         logger.info("MERGING ALL FEATURES")
         logger.info("="*70)
         
-        # Start with static features (includes is_open target)
-        final_df = static_features.copy()
+        # Start with review features (most comprehensive)
+        final_df = review_features.copy()
         
-        # Merge review features
-        final_df = final_df.merge(review_features, on='business_id', how='left')
-        logger.info(f"[OK] Merged review features: {final_df.shape}")
+        logger.info(f"Starting with review features: {final_df.shape}")
+        
+        # Determine merge keys based on temporal validation mode
+        if self.use_temporal_validation:
+            merge_keys = ['business_id', '_cutoff_date']
+            logger.info("Temporal validation mode: merging on business_id + _cutoff_date")
+        else:
+            merge_keys = ['business_id']
+            logger.info("Standard mode: merging on business_id only")
+        
+        # Merge static features
+        # Note: Static features are the same for all cutoff dates of same business
+        final_df = final_df.merge(
+            static_features,
+            on='business_id',
+            how='left'
+        )
+        logger.info(f"After merging static features: {final_df.shape}")
         
         # Merge location features
-        final_df = final_df.merge(location_features, on='business_id', how='left')
-        logger.info(f"[OK] Merged location features: {final_df.shape}")
+        # Note: Location features are also static across cutoff dates
+        final_df = final_df.merge(
+            location_features,
+            on='business_id',
+            how='left'
+        )
+        logger.info(f"After merging location features: {final_df.shape}")
         
-        # Handle any missing values from merge
-        # For businesses with no reviews, fill with reasonable defaults
-        numeric_cols = final_df.select_dtypes(include=[np.number]).columns
-        for col in numeric_cols:
-            if col not in ['business_id', 'is_open']:
-                final_df[col].fillna(0, inplace=True)
+        # Add additional temporal metadata
+        if self.use_temporal_validation:
+            # Extract year and month for easier analysis
+            final_df['_prediction_year'] = final_df['_cutoff_date'].dt.year
+            final_df['_prediction_month'] = final_df['_cutoff_date'].dt.month
+            
+            # Add first and last review dates for label inference
+            # These will be computed from review data
+            logger.info("Computing review date metadata...")
+            
+            review_path = self.processed_path / "review_clean.csv"
+            
+            # Get first and last review dates for each business
+            # OPTIMIZED: Use groupby instead of slow per-business loop
+            business_review_dates = {}
+            
+            for chunk in pd.read_csv(review_path, chunksize=500000, usecols=['business_id', 'date']):
+                chunk['date'] = pd.to_datetime(chunk['date'], errors='coerce')
+                chunk = chunk.dropna(subset=['date'])
+                
+                # FAST: Use groupby to get min/max dates per business in one pass
+                chunk_stats = chunk.groupby('business_id')['date'].agg(['min', 'max'])
+                
+                for business_id, row in chunk_stats.iterrows():
+                    if business_id not in business_review_dates:
+                        business_review_dates[business_id] = {
+                            'first': row['min'],
+                            'last': row['max']
+                        }
+                    else:
+                        # Update with this chunk's data
+                        business_review_dates[business_id]['first'] = min(
+                            business_review_dates[business_id]['first'],
+                            row['min']
+                        )
+                        business_review_dates[business_id]['last'] = max(
+                            business_review_dates[business_id]['last'],
+                            row['max']
+                        )
+            
+            # Add to final_df
+            final_df['_first_review_date'] = final_df['business_id'].map(
+                lambda bid: business_review_dates.get(bid, {}).get('first', pd.NaT)
+            )
+            final_df['_last_review_date'] = final_df['business_id'].map(
+                lambda bid: business_review_dates.get(bid, {}).get('last', pd.NaT)
+            )
+            
+            # Compute business age at cutoff
+            final_df['_business_age_at_cutoff_days'] = (
+                final_df['_cutoff_date'] - final_df['_first_review_date']
+            ).dt.days
+            
+            logger.info("[OK] Added temporal metadata columns:")
+            logger.info("  - _prediction_year, _prediction_month")
+            logger.info("  - _first_review_date, _last_review_date")
+            logger.info("  - _business_age_at_cutoff_days")
         
+        # Remove leaky features if in temporal validation mode
+        if self.use_temporal_validation:
+            features_to_remove = [f for f in self.leaky_features if f in final_df.columns]
+            
+            if features_to_remove:
+                logger.info(f"\nRemoving {len(features_to_remove)} leaky features:")
+                for feat in features_to_remove:
+                    logger.info(f"  - {feat}")
+                
+                final_df = final_df.drop(columns=features_to_remove)
+        
+        # Check for missing values
+        missing_counts = final_df.isnull().sum()
+        cols_with_missing = missing_counts[missing_counts > 0]
+        
+        if len(cols_with_missing) > 0:
+            logger.warning(f"\nColumns with missing values:")
+            for col, count in cols_with_missing.items():
+                logger.warning(f"  {col}: {count:,} ({count/len(final_df)*100:.1f}%)")
+            
+            # Fill missing values
+            # Numeric columns: fill with median
+            numeric_cols = final_df.select_dtypes(include=[np.number]).columns
+            for col in numeric_cols:
+                if final_df[col].isnull().sum() > 0:
+                    final_df[col].fillna(final_df[col].median(), inplace=True)
+            
+            # Categorical columns: fill with mode or 'Unknown'
+            categorical_cols = final_df.select_dtypes(include=['object']).columns
+            # Exclude metadata columns
+            categorical_cols = [c for c in categorical_cols if not c.startswith('_') and c != 'business_id']
+            
+            for col in categorical_cols:
+                if final_df[col].isnull().sum() > 0:
+                    mode_val = final_df[col].mode()[0] if len(final_df[col].mode()) > 0 else 'Unknown'
+                    final_df[col].fillna(mode_val, inplace=True)
+            
+            logger.info("[OK] Filled missing values")
+        
+        # Final statistics
         logger.info(f"\n{'='*70}")
-        logger.info(f"FINAL FEATURE SUMMARY")
+        logger.info(f"FEATURE MERGING COMPLETE")
         logger.info(f"{'='*70}")
-        logger.info(f"Total businesses: {len(final_df):,}")
-        logger.info(f"Total features: {final_df.shape[1] - 2}")  # Exclude business_id and is_open
-        logger.info(f"Target distribution:")
-        logger.info(f"  Open (1): {final_df['is_open'].sum():,} ({final_df['is_open'].mean()*100:.2f}%)")
-        logger.info(f"  Closed (0): {(1-final_df['is_open']).sum():,} ({(1-final_df['is_open'].mean())*100:.2f}%)")
+        logger.info(f"Final shape: {final_df.shape}")
+        logger.info(f"  Rows: {len(final_df):,}")
+        logger.info(f"  Columns: {len(final_df.columns)}")
         
-        # Check for any remaining NaN values
-        nan_counts = final_df.isnull().sum()
-        if nan_counts.sum() > 0:
-            logger.warning(f"\nRemaining NaN values detected:")
-            logger.warning(f"\n{nan_counts[nan_counts > 0]}")
-        else:
-            logger.info(f"\n[OK] No missing values in final dataset")
+        if self.use_temporal_validation:
+            logger.info(f"  Unique businesses: {final_df['business_id'].nunique():,}")
+            logger.info(f"  Unique cutoff dates: {final_df['_cutoff_date'].nunique()}")
+            logger.info(f"  Avg rows per business: {len(final_df) / final_df['business_id'].nunique():.1f}")
+        
+        # Separate metadata and feature columns
+        metadata_cols = [c for c in final_df.columns if c.startswith('_') or c == 'business_id']
+        feature_cols = [c for c in final_df.columns if c not in metadata_cols]
+        
+        logger.info(f"  Metadata columns: {len(metadata_cols)}")
+        logger.info(f"  Feature columns: {len(feature_cols)}")
         
         return final_df
     
     def generate_feature_report(self, final_df: pd.DataFrame):
-        """Generate comprehensive feature engineering report"""
+        """
+        Generate comprehensive markdown report for feature engineering.
+        
+        Args:
+            final_df: Final merged feature DataFrame
+        """
         logger.info("="*70)
-        logger.info("GENERATING FEATURE ENGINEERING REPORT")
+        logger.info("GENERATING FEATURE REPORT")
         logger.info("="*70)
         
         report_lines = []
         report_lines.append("# Feature Engineering Report")
         report_lines.append("")
-        report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report_lines.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report_lines.append("")
         
-        report_lines.append("## Overview")
-        report_lines.append(f"This report documents the feature engineering process for the Yelp business success prediction project.")
-        report_lines.append(f"All features are engineered from historical data only (no data leakage).")
+        # Mode indication
+        if self.use_temporal_validation:
+            report_lines.append("**Mode**: Temporal Validation (Leakage Prevention Enabled)")
+            report_lines.append("")
+            report_lines.append(f"- **Cutoff dates**: {len(self.cutoff_dates)}")
+            report_lines.append(f"- **Prediction years**: {sorted(set(d.year for d in self.cutoff_dates))}")
+            report_lines.append(f"- **Leaky features removed**: {', '.join(self.leaky_features)}")
+        else:
+            report_lines.append("**Mode**: Baseline (Full Dataset)")
+            report_lines.append("")
+            report_lines.append("[WARN] *Warning: This mode may contain temporal leakage*")
+        
+        report_lines.append("")
+        report_lines.append("---")
         report_lines.append("")
         
-        report_lines.append("## Dataset Summary")
-        report_lines.append(f"- Total businesses: {len(final_df):,}")
-        report_lines.append(f"- Total features: {final_df.shape[1] - 2}")
-        report_lines.append(f"- Open businesses: {final_df['is_open'].sum():,} ({final_df['is_open'].mean()*100:.2f}%)")
-        report_lines.append(f"- Closed businesses: {(1-final_df['is_open']).sum():,} ({(1-final_df['is_open'].mean())*100:.2f}%)")
+        # Executive Summary
+        report_lines.append("## Executive Summary")
+        report_lines.append("")
+        report_lines.append(f"- **Total feature rows**: {len(final_df):,}")
+        report_lines.append(f"- **Unique businesses**: {final_df['business_id'].nunique():,}")
+        
+        if self.use_temporal_validation:
+            report_lines.append(f"- **Rows per business**: {len(final_df) / final_df['business_id'].nunique():.1f} (avg)")
+        
+        # Separate metadata and features
+        # Metadata includes: temporal metadata (_*), business_id, and target variables (is_open, label, label_confidence, label_source)
+        metadata_cols = [c for c in final_df.columns if c.startswith('_') or c in ['business_id', 'is_open', 'label', 'label_confidence', 'label_source']]
+        feature_cols = [c for c in final_df.columns if c not in metadata_cols]
+        
+        report_lines.append(f"- **Total columns**: {len(final_df.columns)}")
+        report_lines.append(f"  - Features: {len(feature_cols)}")
+        report_lines.append(f"  - Metadata: {len(metadata_cols)}")
         report_lines.append("")
         
+        # Feature Categories
         report_lines.append("## Feature Categories")
         report_lines.append("")
         
-        # Category A: Static Business Features
-        report_lines.append("### Category A: Static Business Features (8 features)")
-        report_lines.append("- `stars`: Business average rating (1-5)")
-        report_lines.append("- `review_count`: Total reviews on business profile")
-        report_lines.append("- `category_encoded`: Target-encoded primary business category (top 20 + Other)")
-        report_lines.append("- `state_encoded`: Target-encoded state location")
-        report_lines.append("- `city_encoded`: Target-encoded city location (top 50 + Other)")
-        report_lines.append("- `has_multiple_categories`: Binary indicator for multi-category businesses")
-        report_lines.append("- `category_count`: Number of categories listed")
-        report_lines.append("- `price_range`: Restaurant price range (1-4, extracted from attributes)")
-        report_lines.append("")
+        categories = {
+            'A: Static Business': ['stars', 'review_count', 'category_encoded', 'state_encoded', 
+                                   'city_encoded', 'has_multiple_categories', 'category_count', 'price_range'],
+            'B: Review Aggregation': ['total_reviews', 'avg_review_stars', 'std_review_stars',
+                                     'days_since_first_review', 'review_recency_ratio', 'review_frequency',
+                                     'total_useful_votes', 'avg_useful_per_review'],
+            'C: Sentiment': ['avg_sentiment', 'std_sentiment', 'sentiment_volatility',
+                           'pct_positive_reviews', 'pct_negative_reviews', 'pct_neutral_reviews',
+                           'avg_text_length', 'std_text_length', 'sentiment_recent_3m'],
+            'D: User-Weighted': ['avg_reviewer_credibility', 'std_reviewer_credibility',
+                                'weighted_avg_rating', 'weighted_sentiment',
+                                'pct_high_credibility_reviewers', 'weighted_useful_votes',
+                                'avg_reviewer_tenure', 'avg_reviewer_experience', 'review_diversity'],
+            'E: Temporal Dynamics': ['rating_recent_vs_all', 'rating_recent_vs_early',
+                                    'reviews_recent_3m_count', 'engagement_recent_vs_all',
+                                    'sentiment_recent_vs_all', 'review_momentum',
+                                    'lifecycle_stage', 'rating_trend_3m'],
+            'F: Location/Category': ['category_avg_success_rate', 'state_avg_success_rate',
+                                    'city_avg_success_rate', 'category_competitiveness',
+                                    'location_density'],
+            'G: Feature Interactions': ['rating_credibility_interaction', 'momentum_credibility_interaction',
+                                       'size_activity_interaction', 'trend_quality_interaction',
+                                       'engagement_credibility_interaction']
+        }
         
-        # Category B: Review Aggregation
-        report_lines.append("### Category B: Review Aggregation Features (15 features)")
-        report_lines.append("**Volume Metrics:**")
-        report_lines.append("- `total_reviews`: Count of all reviews")
-        report_lines.append("- `review_frequency`: Average reviews per month")
-        report_lines.append("- `review_momentum`: Recent vs historical review frequency ratio")
-        report_lines.append("")
-        report_lines.append("**Rating Metrics:**")
-        report_lines.append("- `avg_review_stars`: Mean rating from all reviews")
-        report_lines.append("- `std_review_stars`: Rating volatility (standard deviation)")
-        report_lines.append("- `rating_velocity`: Slope of rating over time (trend direction)")
-        report_lines.append("- `rating_trend_3m`: Average rating in last 3 months")
-        report_lines.append("")
-        report_lines.append("**Temporal Metrics:**")
-        report_lines.append("- `days_since_first_review`: Age of business review history")
-        report_lines.append("- `days_since_last_review`: Recency of last review")
-        report_lines.append("")
-        report_lines.append("**Engagement Metrics:**")
-        report_lines.append("- `total_useful_votes`: Sum of useful votes across reviews")
-        report_lines.append("- `avg_useful_per_review`: Mean useful votes per review")
-        report_lines.append("- `total_funny_cool`: Total engagement (funny + cool votes)")
-        report_lines.append("")
-        report_lines.append("**Text Metrics:**")
-        report_lines.append("- `avg_text_length`: Mean review length (characters)")
-        report_lines.append("- `std_text_length`: Variance in review lengths")
-        report_lines.append("")
-        
-        # Category C: Sentiment
-        if VADER_AVAILABLE:
-            report_lines.append("### Category C: Sentiment Features (8 features)")
-            report_lines.append("**Aggregate Sentiment (VADER):**")
-            report_lines.append("- `avg_sentiment`: Mean compound sentiment score (-1 to 1)")
-            report_lines.append("- `std_sentiment`: Sentiment volatility")
-            report_lines.append("- `sentiment_slope`: Trend in sentiment over time")
+        for cat_name, cat_features in categories.items():
+            existing_features = [f for f in cat_features if f in feature_cols]
+            report_lines.append(f"### {cat_name}")
+            report_lines.append(f"**Features**: {len(existing_features)}")
             report_lines.append("")
-            report_lines.append("**Sentiment Distribution:**")
-            report_lines.append("- `pct_positive_reviews`: Percentage of positive reviews (>0.5)")
-            report_lines.append("- `pct_negative_reviews`: Percentage of negative reviews (<-0.5)")
-            report_lines.append("- `pct_neutral_reviews`: Percentage of neutral reviews")
+            
+            if len(existing_features) > 0:
+                report_lines.append("```")
+                for feat in existing_features:
+                    report_lines.append(f"  - {feat}")
+                report_lines.append("```")
+                report_lines.append("")
+        
+        # Temporal Metadata (if applicable)
+        if self.use_temporal_validation:
+            report_lines.append("## Temporal Metadata")
             report_lines.append("")
-            report_lines.append("**Recent Sentiment:**")
-            report_lines.append("- `sentiment_recent_3m`: Average sentiment in last 3 months")
-            report_lines.append("- `sentiment_volatility`: Change in sentiment variance (recent vs all)")
+            report_lines.append("Additional columns for temporal validation:")
             report_lines.append("")
-        else:
-            report_lines.append("### Category C: Sentiment Features (SKIPPED)")
-            report_lines.append("VADER sentiment analyzer not available. Install 'vaderSentiment' to enable.")
+            report_lines.append("```")
+            for col in sorted(metadata_cols):
+                if col != 'business_id':
+                    report_lines.append(f"  - {col}")
+            report_lines.append("```")
             report_lines.append("")
+            
+            # Temporal coverage
+            if '_prediction_year' in final_df.columns:
+                year_counts = final_df['_prediction_year'].value_counts().sort_index()
+                report_lines.append("### Temporal Coverage")
+                report_lines.append("")
+                report_lines.append("| Year | Tasks | Unique Businesses |")
+                report_lines.append("|------|-------|-------------------|")
+                for year in sorted(year_counts.index):
+                    year_df = final_df[final_df['_prediction_year'] == year]
+                    unique_biz = year_df['business_id'].nunique()
+                    report_lines.append(f"| {year} | {len(year_df):,} | {unique_biz:,} |")
+                report_lines.append("")
         
-        # Category D: User-Weighted
-        report_lines.append("### Category D: User-Weighted Features (10 features)")
-        report_lines.append("**Novel Contribution: User Credibility Weighting**")
-        report_lines.append("")
-        report_lines.append("User credibility formula:")
-        report_lines.append("```")
-        report_lines.append("useful_rate = useful_votes / (review_count + 1)")
-        report_lines.append("tenure_weight = log(1 + user_tenure_days) / 10")
-        report_lines.append("experience_weight = log(1 + review_count) / 10")
-        report_lines.append("credibility = 0.5 × useful_rate + 0.3 × tenure_weight + 0.2 × experience_weight")
-        report_lines.append("```")
-        report_lines.append("")
-        report_lines.append("Weights normalized to sum=1 within each business for weighted aggregations.")
-        report_lines.append("")
-        report_lines.append("**Features:**")
-        report_lines.append("- `weighted_avg_rating`: Credibility-weighted mean rating")
-        report_lines.append("- `weighted_sentiment`: Credibility-weighted mean sentiment")
-        report_lines.append("- `avg_reviewer_credibility`: Mean credibility of reviewers")
-        report_lines.append("- `std_reviewer_credibility`: Variance in reviewer credibility")
-        report_lines.append("- `pct_high_credibility_reviewers`: % reviewers in top quartile")
-        report_lines.append("- `weighted_useful_votes`: Credibility-weighted useful votes")
-        report_lines.append("- `avg_reviewer_tenure`: Mean reviewer tenure on platform")
-        report_lines.append("- `avg_reviewer_experience`: Mean reviewer experience (review count)")
-        report_lines.append("- `review_diversity`: Ratio of unique reviewers to total reviews")
-        report_lines.append("- `power_user_ratio`: % power users (>100 reviews)")
-        report_lines.append("")
-        
-        # Category E: Temporal Dynamics
-        report_lines.append("### Category E: Temporal Dynamics Features (8 features)")
-        report_lines.append("**Recent vs Historical Comparisons (3-month window):**")
-        report_lines.append("- `rating_recent_vs_all`: Difference between recent and all-time rating")
-        report_lines.append("- `rating_recent_vs_early`: Recent rating vs first 3 months")
-        report_lines.append("- `sentiment_recent_vs_all`: Recent vs all-time sentiment difference")
-        report_lines.append("")
-        report_lines.append("**Activity Trends:**")
-        report_lines.append("- `reviews_recent_3m_count`: Number of reviews in last 3 months")
-        report_lines.append("- `review_frequency_trend`: Recent vs historical frequency ratio")
-        report_lines.append("- `engagement_recent_vs_all`: Recent vs all-time engagement ratio")
-        report_lines.append("")
-        report_lines.append("**Lifecycle:**")
-        report_lines.append("- `lifecycle_stage`: Business lifecycle (0=New, 1=Growing, 2=Mature, 3=Declining)")
-        report_lines.append("")
-        
-        # Category F: Location/Category Aggregates
-        report_lines.append("### Category F: Location/Category Aggregates (5 features)")
-        report_lines.append("- `category_avg_success_rate`: Success rate for business category")
-        report_lines.append("- `state_avg_success_rate`: Success rate for state")
-        report_lines.append("- `city_avg_success_rate`: Success rate for city")
-        report_lines.append("- `category_competitiveness`: Number of competitors (same category, same city)")
-        report_lines.append("- `location_density`: Total businesses in city")
-        report_lines.append("")
-        
-        # Feature statistics
+        # Feature Statistics
         report_lines.append("## Feature Statistics")
         report_lines.append("")
         
-        # Select some key features for summary statistics
-        key_features = [
-            'stars', 'review_count', 'total_reviews', 'avg_review_stars',
-            'rating_velocity', 'avg_sentiment', 'weighted_avg_rating',
-            'avg_reviewer_credibility', 'reviews_recent_3m_count'
-        ]
+        numeric_features = final_df[feature_cols].select_dtypes(include=[np.number]).columns
         
-        available_features = [f for f in key_features if f in final_df.columns]
-        
-        if available_features:
-            report_lines.append("**Key Feature Summary:**")
+        if len(numeric_features) > 0:
+            report_lines.append("### Top 10 Features by Variance")
             report_lines.append("")
-            report_lines.append("| Feature | Mean | Median | Std | Min | Max |")
-            report_lines.append("|---------|------|--------|-----|-----|-----|")
             
-            for feat in available_features:
-                stats = final_df[feat].describe()
-                report_lines.append(
-                    f"| {feat} | {stats['mean']:.3f} | {stats['50%']:.3f} | "
-                    f"{stats['std']:.3f} | {stats['min']:.3f} | {stats['max']:.3f} |"
-                )
+            variances = final_df[numeric_features].var().sort_values(ascending=False).head(10)
+            
+            report_lines.append("| Feature | Variance | Mean | Std |")
+            report_lines.append("|---------|----------|------|-----|")
+            
+            for feat in variances.index:
+                var = variances[feat]
+                mean = final_df[feat].mean()
+                std = final_df[feat].std()
+                report_lines.append(f"| {feat} | {var:.4f} | {mean:.4f} | {std:.4f} |")
+            
             report_lines.append("")
         
-        # Data quality
-        report_lines.append("## Data Quality")
-        report_lines.append("")
-        nan_counts = final_df.isnull().sum()
-        if nan_counts.sum() == 0:
-            report_lines.append("✓ No missing values in final dataset")
+        # Missing Values
+        missing_counts = final_df[feature_cols].isnull().sum()
+        features_with_missing = missing_counts[missing_counts > 0]
+        
+        if len(features_with_missing) > 0:
+            report_lines.append("## Missing Values")
+            report_lines.append("")
+            report_lines.append("| Feature | Missing Count | Missing % |")
+            report_lines.append("|---------|---------------|-----------|")
+            
+            for feat, count in features_with_missing.items():
+                pct = count / len(final_df) * 100
+                report_lines.append(f"| {feat} | {count:,} | {pct:.2f}% |")
+            
+            report_lines.append("")
         else:
-            report_lines.append("⚠ Missing values detected:")
-            for col, count in nan_counts[nan_counts > 0].items():
-                report_lines.append(f"  - {col}: {count} ({count/len(final_df)*100:.2f}%)")
+            report_lines.append("## Missing Values")
+            report_lines.append("")
+            report_lines.append("[OK] No missing values in features")
+            report_lines.append("")
+        
+        # Data Quality Notes
+        report_lines.append("## Data Quality Notes")
         report_lines.append("")
         
-        # Next steps
+        if self.use_temporal_validation:
+            report_lines.append("### Temporal Leakage Prevention")
+            report_lines.append("")
+            report_lines.append("[OK] Features computed only from historical data up to cutoff date")
+            report_lines.append("[OK] Removed leaky features that encode future information")
+            report_lines.append("[OK] Temporal windows (recent/early) defined relative to cutoff")
+            report_lines.append("")
+        else:
+            report_lines.append("### [WARN] Temporal Leakage Warning")
+            report_lines.append("")
+            report_lines.append("This dataset uses the full time range without temporal constraints.")
+            report_lines.append("Features may contain information from after the prediction time.")
+            report_lines.append("Use `business_features_temporal.csv` for proper evaluation.")
+            report_lines.append("")
+        
+        # Next Steps
         report_lines.append("## Next Steps")
         report_lines.append("")
-        report_lines.append("1. **Feature Selection**: Apply correlation analysis, variance thresholding, and model-based selection")
-        report_lines.append("2. **Dimensionality Reduction**: Optional PCA if needed (retain 95% variance)")
-        report_lines.append("3. **Class Imbalance**: Apply SMOTE or stratified sampling for training")
-        report_lines.append("4. **Model Training**: Implement baseline models (Logistic Regression, Decision Tree, Random Forest)")
-        report_lines.append("5. **Ablation Studies**: Use separate feature category files to assess contribution")
+        report_lines.append("1. **Label Generation**: Use `label_inference.py` to generate labels")
+        report_lines.append("2. **Data Validation**: Run `validation.py` to check quality")
+        report_lines.append("3. **Model Training**: Proceed to baseline models")
         report_lines.append("")
         
-        # File outputs
-        report_lines.append("## Output Files")
+        report_lines.append("---")
         report_lines.append("")
-        report_lines.append("**Main Output:**")
-        report_lines.append("- `data/features/business_features_final.csv` - Single merged dataset for modeling")
-        report_lines.append("")
-        report_lines.append("**Feature Categories (for ablation studies):**")
-        report_lines.append("- `data/features/feature_categories/business_static_features.csv`")
-        report_lines.append("- `data/features/feature_categories/review_aggregation_features.csv`")
-        report_lines.append("- `data/features/feature_categories/sentiment_features.csv`")
-        report_lines.append("- `data/features/feature_categories/user_weighted_features.csv`")
-        report_lines.append("- `data/features/feature_categories/temporal_features.csv`")
-        report_lines.append("- `data/features/feature_categories/location_category_features.csv`")
-        report_lines.append("")
+        report_lines.append("*Report generated by CS 412 Research Project feature engineering pipeline*")
         
         # Save report
         report_file = self.output_path / "feature_engineering_report.md"
@@ -962,15 +1365,22 @@ class FeatureEngineer:
             f.write('\n'.join(report_lines))
         
         logger.info(f"[OK] Saved: {report_file}")
-    
+
     def run_pipeline(self):
-        """Execute complete feature engineering pipeline"""
+        """Execute complete feature engineering pipeline with temporal validation support"""
         logger.info("="*70)
         logger.info("CS 412 RESEARCH PROJECT - FEATURE ENGINEERING")
         logger.info("Business Success Prediction using Yelp Dataset")
         logger.info("="*70)
         logger.info("")
         logger.info("Pipeline: Feature Engineering")
+        
+        if self.use_temporal_validation:
+            logger.info("Mode: TEMPORAL VALIDATION (preventing data leakage)")
+            logger.info(f"Cutoff dates: {len(self.cutoff_dates)}")
+        else:
+            logger.info("Mode: BASELINE (using full dataset)")
+        
         logger.info("")
         
         # Step 1: Load data
@@ -983,6 +1393,7 @@ class FeatureEngineer:
         static_features = self.create_static_features()
         
         # Step 4: Create review-based features (includes sentiment, user-weighted, temporal)
+        # This is where temporal filtering happens
         review_features = self.create_review_features_chunked(user_credibility)
         
         # Step 5: Create location/category features
@@ -992,8 +1403,13 @@ class FeatureEngineer:
         final_df = self.merge_all_features(static_features, review_features, location_features)
         
         # Step 7: Save final merged dataset
-        final_file = self.output_path / "business_features_final.csv"
+        if self.use_temporal_validation:
+            final_file = self.output_path / "business_features_temporal.csv"
+        else:
+            final_file = self.output_path / "business_features_baseline.csv"
+        
         final_df.to_csv(final_file, index=False)
+        
         logger.info(f"\n{'='*70}")
         logger.info(f"[OK] Saved final feature dataset: {final_file}")
         logger.info(f"  Shape: {final_df.shape}")
@@ -1010,10 +1426,14 @@ class FeatureEngineer:
         logger.info(f"  - data/features/feature_categories/ (6 separate files)")
         logger.info(f"  - data/features/feature_engineering_report.md")
         logger.info("")
+        
+        return final_df
 
 
 def main():
-    """Main entry point for feature engineering"""
+    """Main entry point for feature engineering with temporal validation support"""
+    import argparse
+    
     print("="*70)
     print("CS 412 RESEARCH PROJECT - FEATURE ENGINEERING")
     print("Business Success Prediction using Yelp Dataset")
@@ -1021,16 +1441,59 @@ def main():
     print("\nPhase 3: Feature Engineering")
     print("")
     
-    engineer = FeatureEngineer()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Feature Engineering Pipeline')
+    parser.add_argument('--temporal', action='store_true',
+                       help='Enable temporal validation mode')
+    parser.add_argument('--years', type=str, default='2012-2020',
+                       help='Prediction years (format: 2012-2020 or 2012,2013,2014)')
+    parser.add_argument('--mode', type=str, choices=['baseline', 'temporal'], default='baseline',
+                       help='Feature generation mode')
+    
+    args = parser.parse_args()
+    
+    # Determine mode
+    use_temporal = args.temporal or (args.mode == 'temporal')
+    
+    # Parse years
+    if use_temporal:
+        if '-' in args.years:
+            # Range format: 2012-2020
+            start, end = map(int, args.years.split('-'))
+            prediction_years = list(range(start, end + 1))
+        else:
+            # Comma-separated: 2012,2013,2014
+            prediction_years = [int(y.strip()) for y in args.years.split(',')]
+        
+        print(f"Mode: TEMPORAL VALIDATION")
+        print(f"Prediction years: {prediction_years}")
+    else:
+        prediction_years = None
+        print(f"Mode: BASELINE (full dataset)")
+    
+    print("")
+    
+    # Initialize engineer
+    engineer = FeatureEngineer(
+        use_temporal_validation=use_temporal,
+        prediction_years=prediction_years
+    )
+    
+    # Run pipeline
     engineer.run_pipeline()
     
     print("\n" + "="*70)
     print("FEATURE ENGINEERING COMPLETE!")
     print("="*70)
-    print("\nNext Steps:")
-    print("  1. Review feature_engineering_report.md")
-    print("  2. Proceed to feature selection/dimensionality reduction")
-    print("  3. Begin baseline model training")
+    print("\nCheck the following outputs:")
+    
+    if use_temporal:
+        print("  1. data/features/business_features_temporal.csv")
+    else:
+        print("  1. data/features/business_features_baseline.csv")
+    
+    print("  2. data/features/feature_categories/ (separate files)")
+    print("  3. data/features/feature_engineering_report.md")
     print("")
 
 

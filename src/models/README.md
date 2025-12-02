@@ -273,7 +273,7 @@ For questions or issues:
 
 ---
 
-## ✅ Checklist Before Running
+## [OK] Checklist Before Running
 
 - [ ] Python 3.7+ installed
 - [ ] All required packages installed
