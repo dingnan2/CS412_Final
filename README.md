@@ -110,6 +110,6 @@ All reports are in `docs/`:
 ## Contact
 
 For questions or issues, contact:
-- Adeniran Coker: acoker3@illinois.edu
-- Ju-Bin Choi: jchoi80@illinois.edu
-- Carmen Zheng: dzheng8@illinois.edu
+- Adeniran Coker: ac171@illinois.edu
+- Ju-Bin Choi: jubinc2@illinois.edu
+- Carmen Zheng: dingnan2@illinois.edu

@@ -868,17 +868,17 @@ class FinalReportGenerator:
         # Authors
         latex_lines.append(r"\author{Adeniran Coker}")
         latex_lines.append(r"\affiliation{University of Illinois Urbana-Champaign}")
-        latex_lines.append(r"\email{acoker3@illinois.edu}")
+        latex_lines.append(r"\email{ac171@illinois.edu}")
         latex_lines.append("")
         
         latex_lines.append(r"\author{Ju-Bin Choi}")
         latex_lines.append(r"\affiliation{University of Illinois Urbana-Champaign}")
-        latex_lines.append(r"\email{jchoi80@illinois.edu}")
+        latex_lines.append(r"\email{jubinc2@illinois.edu}")
         latex_lines.append("")
         
         latex_lines.append(r"\author{Carmen Zheng}")
         latex_lines.append(r"\affiliation{University of Illinois Urbana-Champaign}")
-        latex_lines.append(r"\email{dzheng8@illinois.edu}")
+        latex_lines.append(r"\email{dingnan2@illinois.edu}")
         latex_lines.append("")
         
         latex_lines.append(r"\maketitle")
@@ -1050,9 +1050,9 @@ class FinalReportGenerator:
         readme_lines.append("## Contact")
         readme_lines.append("")
         readme_lines.append("For questions or issues, contact:")
-        readme_lines.append("- Adeniran Coker: acoker3@illinois.edu")
-        readme_lines.append("- Ju-Bin Choi: jchoi80@illinois.edu")
-        readme_lines.append("- Carmen Zheng: dzheng8@illinois.edu")
+        readme_lines.append("- Adeniran Coker: ac171@illinois.edu")
+        readme_lines.append("- Ju-Bin Choi: jubinc2@illinois.edu")
+        readme_lines.append("- Carmen Zheng: dingnan2@illinois.edu")
         
         # Write README
         with open(readme_path, 'w', encoding='utf-8') as f:
