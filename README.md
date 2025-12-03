@@ -64,48 +64,42 @@ After downloading, simply place the JSON files into `data/raw/` and proceed with
 
 
 ### Run Complete Pipeline
+
+**Recommended: Use the unified entry point `main.py`**
+
 ```bash
-# Phase 1: Data preprocessing
-python src/data_processing/data_preprocessing.py
+# Run all phases (1-10) in order
+python main.py
 
-# Phase 2: EDA
-python src/data_processing/EDA_analysis.py
+# Or explicitly specify --all
+python main.py --all
 
-# Phase 3: Feature engineering (temporal mode)
-python src/feature_engineering/feature_eng.py --temporal --years 2012-2020
-
-# Phase 4: Baseline models
-python src/models/baseline_models.py --temporal
-
-# Phase 5: Temporal validation
-python src/models/temporal_validation.py
-
-# Phase 6: Advanced models
-python src/models/advanced_models.py
-
-# Phase 7: Ablation study
-python src/evaluation/ablation_study.py
-
-# Phase 8: Case studies
-python src/evaluation/case_study.py
-
-# Phase 9: Generate final report
-python src/reporting/generate_final_report.py
+# Run specific phases only (e.g., phases 3, 4, and 6)
+python main.py --phase 3 4 6
 ```
+
+**Pipeline Phases:**
+1. Data preprocessing (clean raw Yelp JSON to CSV)
+2. Exploratory data analysis (EDA plots + report)
+3. Feature engineering (temporal features, user credibility, 2012–2020)
+4. Temporal validation (label inference + temporal split, 12-month window)
+5. Baseline models (Logistic Regression, Decision Tree, Random Forest)
+6. Advanced models (XGBoost, LightGBM, Neural Network, Ensembles)
+7. Ablation study (feature category analysis)
+8. Case study (TP/TN/FP/FN error analysis)
+9. Parameter study (hyperparameter sensitivity analysis)
+10. Final report generation (aggregate results to `docs/`)
+
+**Note:** All modeling phases (5-9) use the same data file and split configuration from `config.py` to ensure consistent and comparable results.
 
 ## Key Results
 
-- **Best Model**: Ensemble (Stacking) with ROC-AUC = 0.82
-- **Temporal Leakage Impact**: 15-point drop after correction (0.95 → 0.80)
-- **Most Important Features**: User credibility, review recency, temporal trends
-- **User Credibility Impact**: +3% improvement in ROC-AUC
-
-## Reports
-
-All reports are in `docs/`:
-- `final_report.md`: Comprehensive project report
-- `final_report.tex`: LaTeX version for submission
-- Phase-specific reports in respective directories
+- **Best Model**: XGBoost with ROC-AUC = 0.886
+- **Baseline Performance**: Random Forest (ClassWeight) with ROC-AUC = 0.835
+- **Improvement**: +6.1% relative improvement over baseline
+- **Temporal Leakage Impact**: 15-point drop after correction (0.95 → 0.84)
+- **User Credibility Impact**: +0.017 AUC (2.0% relative) validated through ablation study
+- **Most Important Features**: Review count, user credibility metrics (avg_reviewer_tenure), review frequency
 
 ## Contact
 
