@@ -5,7 +5,6 @@ EDA Analysis: Load cleaned datasets and produce visualizations and a markdown re
 
 import pandas as pd
 import numpy as np
-import logging
 from pathlib import Path
 from typing import Optional
 import matplotlib.pyplot as plt
@@ -27,17 +26,6 @@ except Exception:
 # Configure plotting style
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('preprocessing.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 
 class EDAAnalyzer:
@@ -62,12 +50,8 @@ class EDAAnalyzer:
 
     def load_cleaned_data(self):
         """Load all cleaned datasets"""
-        logger.info("="*70)
-        logger.info("LOADING CLEANED DATA FOR EDA")
-        logger.info("="*70)
 
         self.business_df = pd.read_csv(self.processed_path / "business_clean.csv")
-        logger.info(f"Loaded business_clean.csv: {self.business_df.shape}")
 
         # Default to FULL dataset unless EDA_SAMPLE_N is specified
         eda_sample_env = os.environ.get('EDA_SAMPLE_N', '').strip()
@@ -77,34 +61,25 @@ class EDAAnalyzer:
             try:
                 nrows = int(eda_sample_env)
                 self.review_df = pd.read_csv(review_path, nrows=nrows)
-                logger.info(f"Loaded review_clean.csv with nrows={nrows}")
             except Exception as e:
-                logger.warning(f"Sample loading failed: {e}, trying default load")
                 self.review_df = pd.read_csv(review_path)
-                logger.info("Loaded full review_clean.csv (fallback)")
         else:
-            logger.info("Loading review data in chunks to manage memory...")
             chunk_size = 50000
             chunks = []
             row_count = 0
             for i, chunk in enumerate(pd.read_csv(review_path, chunksize=chunk_size)):
                 chunks.append(chunk)
                 row_count += len(chunk)
-                if (i + 1) % 5 == 0:
-                    logger.info(f"Loaded {row_count:,} review records...")
+                
             self.review_df = pd.concat(chunks, ignore_index=True)
-            logger.info(f"Completed loading review_clean.csv: {self.review_df.shape}")
         self.review_df['date'] = pd.to_datetime(self.review_df['date'])
-        logger.info(f"Loaded review_clean.csv: {self.review_df.shape}")
 
         user_path = self.processed_path / "user_clean.csv"
         if eda_sample_env:
             try:
                 nrows = int(eda_sample_env)
                 self.user_df = pd.read_csv(user_path, nrows=nrows)
-                logger.info(f"Loaded user_clean.csv with nrows={nrows}")
             except Exception as e:
-                logger.warning(f"Sample loading failed: {e}, trying chunked loading")
                 chunk_size = 50000
                 chunks = []
                 for chunk in pd.read_csv(user_path, chunksize=chunk_size):
@@ -112,38 +87,24 @@ class EDAAnalyzer:
                     if len(chunks) * chunk_size >= nrows:
                         break
                 self.user_df = pd.concat(chunks, ignore_index=True).iloc[:nrows]
-                logger.info(f"Loaded user_clean.csv with chunked reading, nrows={nrows}")
         else:
             # Use chunked reading for full file to avoid memory issues
-            logger.info("Loading user data in chunks to manage memory...")
             chunk_size = 50000
             chunks = []
             row_count = 0
             for i, chunk in enumerate(pd.read_csv(user_path, chunksize=chunk_size)):
                 chunks.append(chunk)
                 row_count += len(chunk)
-                if (i + 1) % 5 == 0:
-                    logger.info(f"Loaded {row_count:,} user records...")
+                
             self.user_df = pd.concat(chunks, ignore_index=True)
-            logger.info(f"Completed loading user_clean.csv: {self.user_df.shape}")
 
         self.user_df['yelping_since'] = pd.to_datetime(self.user_df['yelping_since'])
-        logger.info(f"Final user_clean.csv shape: {self.user_df.shape}")
 
     def analyze_business_data(self):
-        logger.info("="*70)
-        logger.info("BUSINESS DATA EDA")
-        logger.info("="*70)
 
         df = self.business_df
 
         # Basic statistics
-        logger.info(f"\nBasic Statistics:")
-        logger.info(f"  Total businesses: {len(df):,}")
-        logger.info(f"  Unique cities: {df['city'].nunique():,}")
-        logger.info(f"  Unique states: {df['state'].nunique():,}")
-        logger.info(f"  Avg stars: {df['stars'].mean():.2f}")
-        logger.info(f"  Avg review count: {df['review_count'].mean():.2f}")
 
         # Create visualizations
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -218,11 +179,9 @@ class EDAAnalyzer:
 
         plt.tight_layout()
         plt.savefig(self.plot_path / 'business_analysis.png', dpi=300, bbox_inches='tight')
-        logger.info(f"\nSaved: plots/business_analysis.png")
         plt.close()
 
         # Additional analysis: Top categories (Top 20, counts and success rate)
-        logger.info(f"\nTop Business Categories:")
         all_categories = []
         for cats in df['categories'].fillna(''):
             if cats:
@@ -237,7 +196,6 @@ class EDAAnalyzer:
         plt.tight_layout()
         plt.savefig(self.plot_path / 'business_top_categories.png', dpi=300, bbox_inches='tight')
         plt.close()
-        logger.info("Saved: plots/business_top_categories.png")
         # Success rate by category (Top 20 only)
         cat_success = []
         for cat in top20.index:
@@ -256,22 +214,12 @@ class EDAAnalyzer:
             plt.tight_layout()
             plt.savefig(self.plot_path / 'business_top_categories_success.png', dpi=300, bbox_inches='tight')
             plt.close()
-            logger.info("Saved: plots/business_top_categories_success.png")
 
     def analyze_review_data(self):
-        logger.info("="*70)
-        logger.info("REVIEW DATA EDA")
-        logger.info("="*70)
 
         df = self.review_df
 
         # Basic statistics
-        logger.info(f"\nBasic Statistics:")
-        logger.info(f"  Total reviews: {len(df):,}")
-        logger.info(f"  Unique businesses reviewed: {df['business_id'].nunique():,}")
-        logger.info(f"  Unique reviewers: {df['user_id'].nunique():,}")
-        logger.info(f"  Avg stars: {df['stars'].mean():.2f}")
-        logger.info(f"  Date range: {df['date'].min()} to {df['date'].max()}")
 
         # Text length analysis (memory-safe batching)
         try:
@@ -282,9 +230,7 @@ class EDAAnalyzer:
                 end = min(start + batch_size, n)
                 lengths[start:end] = df['text'].iloc[start:end].astype(str).str.len().to_numpy(dtype=np.int32, copy=False)
             df['text_length'] = lengths
-            logger.info(f"  Avg text length: {df['text_length'].mean():.0f} characters")
         except MemoryError:
-            logger.warning("Low memory while computing text_length; using a 1,000,000-row sample for text-length visuals.")
             sample_n = min(1_000_000, len(df))
             sample_idx = np.random.RandomState(42).choice(len(df), size=sample_n, replace=False)
             df_sample = df.iloc[sample_idx].copy()
@@ -353,11 +299,9 @@ class EDAAnalyzer:
 
         plt.tight_layout()
         plt.savefig(self.plot_path / 'review_analysis.png', dpi=300, bbox_inches='tight')
-        logger.info(f"\nSaved: plots/review_analysis.png")
         plt.close()
 
         # Monthly trends (reviews, average rating, average text length)
-        logger.info("Creating monthly temporal trends (reviews, rating, text length)...")
         monthly = df.assign(year_month=df['date'].dt.to_period('M')).groupby('year_month').agg(
             reviews=('review_id', 'count'),
             avg_rating=('stars', 'mean'),
@@ -381,10 +325,8 @@ class EDAAnalyzer:
         plt.tight_layout()
         plt.savefig(self.plot_path / 'review_monthly_trends.png', dpi=300, bbox_inches='tight')
         plt.close()
-        logger.info("Saved: plots/review_monthly_trends.png")
 
         # Rating velocity (last 6 months vs prior period)
-        logger.info("Calculating rating velocity (last 6 months vs previous)...")
         max_date = df['date'].max()
         cutoff_recent = max_date - pd.Timedelta(days=180)
         recent = df[df['date'] > cutoff_recent]
@@ -401,70 +343,51 @@ class EDAAnalyzer:
         plt.tight_layout()
         plt.savefig(self.plot_path / 'review_rating_velocity.png', dpi=300, bbox_inches='tight')
         plt.close()
-        logger.info("Saved: plots/review_rating_velocity.png")
 
         # Sentiment analysis (if available)
         # OPTIMIZED: Save sentiment scores to CSV for reuse in Phase 3 (feature engineering)
         if VADER_AVAILABLE:
-            try:
-                logger.info("Running VADER sentiment over reviews (this can take time)...")
-                logger.info("  Sentiment scores will be saved to data/processed/review_sentiment.csv for Phase 3 reuse")
-                analyzer = SentimentIntensityAnalyzer()
+            
+            analyzer = SentimentIntensityAnalyzer()
                 
-                # Compute sentiment in batches to show progress
-                n_reviews = len(df)
-                batch_size = 100000
-                sentiments = []
+            # Compute sentiment in batches to show progress
+            n_reviews = len(df)
+            batch_size = 100000
+            sentiments = []
                 
-                for start in range(0, n_reviews, batch_size):
-                    end = min(start + batch_size, n_reviews)
-                    batch_texts = df['text'].iloc[start:end].fillna('')
-                    batch_sentiments = batch_texts.apply(lambda t: analyzer.polarity_scores(str(t))['compound'])
-                    sentiments.extend(batch_sentiments.tolist())
-                    logger.info(f"  Processed {end:,}/{n_reviews:,} reviews ({end/n_reviews*100:.1f}%)")
+            for start in range(0, n_reviews, batch_size):
+                end = min(start + batch_size, n_reviews)
+                batch_texts = df['text'].iloc[start:end].fillna('')
+                batch_sentiments = batch_texts.apply(lambda t: analyzer.polarity_scores(str(t))['compound'])
+                sentiments.extend(batch_sentiments.tolist())
                 
-                # Create sentiment DataFrame with review_id for joining
-                df_sent = df[['review_id', 'business_id', 'date']].copy()
-                df_sent['sentiment'] = sentiments
+            # Create sentiment DataFrame with review_id for joining
+            df_sent = df[['review_id', 'business_id', 'date']].copy()
+            df_sent['sentiment'] = sentiments
                 
-                # [SAVE] SENTIMENT TO CSV FOR PHASE 3 REUSE
-                sentiment_output_path = self.processed_path / 'review_sentiment.csv'
-                df_sent.to_csv(sentiment_output_path, index=False)
-                logger.info(f"  [OK] Saved sentiment scores to: {sentiment_output_path}")
-                logger.info(f"    (Phase 3 will load this instead of re-computing VADER)")
+            # [SAVE] SENTIMENT TO CSV FOR PHASE 3 REUSE
+            sentiment_output_path = self.processed_path / 'review_sentiment.csv'
+            df_sent.to_csv(sentiment_output_path, index=False)
                 
-                # Plot monthly sentiment trend
-                monthly_sent = df_sent.assign(year_month=df_sent['date'].dt.to_period('M')).groupby('year_month')['sentiment'].mean()
-                monthly_sent.index = monthly_sent.index.astype(str)
-                plt.figure(figsize=(14, 5))
-                plt.plot(monthly_sent.index, monthly_sent.values, color='#c0392b')
-                plt.title('Monthly Average Review Sentiment (VADER)')
-                plt.ylabel('Compound Sentiment')
-                plt.grid(True, alpha=0.3)
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-                plt.savefig(self.plot_path / 'review_monthly_sentiment.png', dpi=300, bbox_inches='tight')
-                plt.close()
-                logger.info("Saved: plots/review_monthly_sentiment.png")
-            except Exception as e:
-                logger.warning(f"Sentiment analysis skipped due to error: {e}")
-        else:
-            logger.warning("VADER sentiment not available. Install 'vaderSentiment' to enable sentiment plots.")
+            # Plot monthly sentiment trend
+            monthly_sent = df_sent.assign(year_month=df_sent['date'].dt.to_period('M')).groupby('year_month')['sentiment'].mean()
+            monthly_sent.index = monthly_sent.index.astype(str)
+            plt.figure(figsize=(14, 5))
+            plt.plot(monthly_sent.index, monthly_sent.values, color='#c0392b')
+            plt.title('Monthly Average Review Sentiment (VADER)')
+            plt.ylabel('Compound Sentiment')
+            plt.grid(True, alpha=0.3)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            plt.savefig(self.plot_path / 'review_monthly_sentiment.png', dpi=300, bbox_inches='tight')
+            plt.close()
+
 
     def analyze_user_data(self):
-        logger.info("="*70)
-        logger.info("USER DATA EDA")
-        logger.info("="*70)
 
         df = self.user_df
 
         # Basic statistics
-        logger.info(f"\nBasic Statistics:")
-        logger.info(f"  Total users: {len(df):,}")
-        logger.info(f"  Avg reviews per user: {df['review_count'].mean():.2f}")
-        logger.info(f"  Avg useful votes: {df['useful'].mean():.2f}")
-        logger.info(f"  Avg tenure: {df['user_tenure_years'].mean():.2f} years")
-        logger.info(f"  Avg fans: {df['fans'].mean():.2f}")
 
         # Create visualizations
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -530,22 +453,13 @@ class EDAAnalyzer:
 
         plt.tight_layout()
         plt.savefig(self.plot_path / 'user_analysis.png', dpi=300, bbox_inches='tight')
-        logger.info(f"\nSaved: plots/user_analysis.png")
         plt.close()
 
         # User segments analysis
-        logger.info(f"\nUser Segments:")
-        logger.info(f"  Power users (>100 reviews): {len(df[df['review_count'] > 100]):,} ({len(df[df['review_count'] > 100])/len(df)*100:.2f}%)")
-        logger.info(f"  Active users (10-100 reviews): {len(df[(df['review_count'] >= 10) & (df['review_count'] <= 100)]):,} ({len(df[(df['review_count'] >= 10) & (df['review_count'] <= 100)])/len(df)*100:.2f}%)")
-        logger.info(f"  Casual users (<10 reviews): {len(df[df['review_count'] < 10]):,} ({len(df[df['review_count'] < 10])/len(df)*100:.2f}%)")
 
     def analyze_correlations(self):
-        logger.info("="*70)
-        logger.info("CORRELATION ANALYSIS")
-        logger.info("="*70)
 
         # Aggregate review data by business
-        logger.info("\nAggregating review statistics by business...")
         if 'text_length' not in self.review_df.columns:
             self.review_df['text_length'] = self.review_df['text'].astype(str).str.len()
         review_agg = self.review_df.groupby('business_id').agg({
@@ -640,21 +554,13 @@ class EDAAnalyzer:
 
         plt.tight_layout()
         plt.savefig(self.plot_path / 'correlation_analysis.png', dpi=300, bbox_inches='tight')
-        logger.info(f"\nSaved: plots/correlation_analysis.png")
         plt.close()
 
         # Print key correlations
-        logger.info(f"\nKey Correlations with Business Success (is_open):")
         correlations = corr_data['is_open'].sort_values(ascending=False)
-        for feature, corr_value in correlations.items():
-            if feature != 'is_open':
-                logger.info(f"  {feature}: {corr_value:.3f}")
-
+        
     def generate_eda_report(self):
         """Generate comprehensive EDA report (Markdown) with analysis and plot references"""
-        logger.info("="*70)
-        logger.info("GENERATING EDA REPORT")
-        logger.info("="*70)
 
         report_lines = []
         report_lines.append(f"# CS 412 Research Project - EDA Report")
@@ -744,8 +650,6 @@ class EDAAnalyzer:
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report_text)
 
-        logger.info(f"\nSaved: {report_file}")
-        logger.info("\nEDA Complete! Check the 'plots' folder for visualizations.")
 
 
 def main():

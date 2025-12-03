@@ -11,9 +11,7 @@ the pipeline, with special focus on:
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional
-import logging
 
-logger = logging.getLogger(__name__)
 
 
 def validate_label_quality(tasks_df: pd.DataFrame,
@@ -40,12 +38,8 @@ def validate_label_quality(tasks_df: pd.DataFrame,
     Side effects:
         Logs validation statistics and warnings
     """
-    logger.info("="*70)
-    logger.info("VALIDATING LABEL QUALITY")
-    logger.info("="*70)
     
     initial_count = len(tasks_df)
-    logger.info(f"Initial tasks: {initial_count:,}")
     
     # Check 1: Label confidence
     if 'label_confidence' in tasks_df.columns:
@@ -53,29 +47,17 @@ def validate_label_quality(tasks_df: pd.DataFrame,
         tasks_df = tasks_df[high_confidence].copy()
         
         removed_low_conf = initial_count - len(tasks_df)
-        logger.info(f"\nConfidence filtering (threshold={min_confidence}):")
-        logger.info(f"  Removed {removed_low_conf:,} low-confidence tasks")
-        logger.info(f"  Remaining: {len(tasks_df):,}")
-    else:
-        logger.warning("No 'label_confidence' column found, skipping confidence filter")
+
     
     # Check 2: Class distribution
     if 'label' in tasks_df.columns:
         class_counts = tasks_df['label'].value_counts()
-        logger.info(f"\nClass distribution:")
-        logger.info(f"  Open (1): {class_counts.get(1, 0):,} ({class_counts.get(1, 0)/len(tasks_df)*100:.1f}%)")
-        logger.info(f"  Closed (0): {class_counts.get(0, 0):,} ({class_counts.get(0, 0)/len(tasks_df)*100:.1f}%)")
         
         # Check class balance
         if require_balanced:
             for label in [0, 1]:
                 count = class_counts.get(label, 0)
-                if count < min_samples_per_class:
-                    logger.warning(f"  WARNING: Class {label} has only {count} samples "
-                                 f"(minimum: {min_samples_per_class})")
-                    logger.warning(f"  Consider lowering min_confidence or min_samples_per_class")
-    else:
-        logger.warning("No 'label' column found, skipping class distribution check")
+                
     
     # Check 3: Date consistency
     if 'cutoff_date' in tasks_df.columns and 'target_date' in tasks_df.columns:
@@ -83,32 +65,15 @@ def validate_label_quality(tasks_df: pd.DataFrame,
         num_invalid = invalid_dates.sum()
         
         if num_invalid > 0:
-            logger.warning(f"\nFound {num_invalid} tasks with invalid date ordering")
-            logger.warning(f"  (cutoff_date >= target_date)")
             tasks_df = tasks_df[~invalid_dates].copy()
-            logger.info(f"  Removed invalid tasks, remaining: {len(tasks_df):,}")
     
     # Check 4: Temporal coverage
     if 'prediction_year' in tasks_df.columns:
         year_counts = tasks_df['prediction_year'].value_counts().sort_index()
-        logger.info(f"\nTemporal coverage:")
-        
-        for year, count in year_counts.items():
-            logger.info(f"  {year}: {count:,} tasks")
         
         # Warn about years with very few samples
         sparse_years = year_counts[year_counts < 100]
-        if len(sparse_years) > 0:
-            logger.warning(f"\nYears with <100 tasks: {list(sparse_years.index)}")
-            logger.warning(f"  These years may have unreliable statistics")
-    
-    # Summary
-    logger.info(f"\n{'='*70}")
-    logger.info(f"VALIDATION COMPLETE")
-    logger.info(f"{'='*70}")
-    logger.info(f"Final tasks: {len(tasks_df):,}")
-    logger.info(f"Retention rate: {len(tasks_df)/initial_count*100:.1f}%")
-    logger.info(f"{'='*70}\n")
+
     
     return tasks_df
 
@@ -140,9 +105,6 @@ def validate_feature_quality(features_df: pd.DataFrame,
     Side effects:
         Logs validation issues and warnings
     """
-    logger.info("="*70)
-    logger.info("VALIDATING FEATURE QUALITY")
-    logger.info("="*70)
     
     initial_count = len(features_df)
     validation_report = {
@@ -156,11 +118,9 @@ def validate_feature_quality(features_df: pd.DataFrame,
         missing_cols = set(required_columns) - set(features_df.columns)
         if missing_cols:
             error_msg = f"Missing required columns: {missing_cols}"
-            logger.error(error_msg)
             validation_report['issues'].append(error_msg)
             raise ValueError(error_msg)
         
-        logger.info(f"[OK] All {len(required_columns)} required columns present")
     
     # Check 2: Missing values
     missing_stats = features_df.isnull().sum()
@@ -169,14 +129,11 @@ def validate_feature_quality(features_df: pd.DataFrame,
     high_missing_cols = missing_rates[missing_rates > max_missing_rate]
     
     if len(high_missing_cols) > 0:
-        logger.warning(f"\nColumns with high missing rates (>{max_missing_rate*100}%):")
         for col, rate in high_missing_cols.items():
-            logger.warning(f"  {col}: {rate*100:.1f}%")
             validation_report['warnings'].append(
                 f"High missing rate in {col}: {rate*100:.1f}%"
             )
-    else:
-        logger.info(f"[OK] All columns have missing rates <= {max_missing_rate*100}%")
+
     
     # Check 3: Infinite values
     if check_inf:
@@ -189,9 +146,7 @@ def validate_feature_quality(features_df: pd.DataFrame,
                 inf_counts[col] = inf_count
         
         if inf_counts:
-            logger.warning(f"\nColumns with infinite values:")
             for col, count in inf_counts.items():
-                logger.warning(f"  {col}: {count:,} infinite values")
                 validation_report['warnings'].append(
                     f"Infinite values in {col}: {count}"
                 )
@@ -200,17 +155,11 @@ def validate_feature_quality(features_df: pd.DataFrame,
             for col in inf_counts.keys():
                 features_df = features_df[~np.isinf(features_df[col])].copy()
             
-            logger.info(f"  Removed {initial_count - len(features_df):,} rows with infinite values")
-        else:
-            logger.info(f"[OK] No infinite values detected")
+
     
     # Check 4: Feature statistics
     numeric_cols = features_df.select_dtypes(include=[np.number]).columns
     
-    logger.info(f"\nFeature statistics:")
-    logger.info(f"  Total features: {len(features_df.columns)}")
-    logger.info(f"  Numeric features: {len(numeric_cols)}")
-    logger.info(f"  Categorical features: {len(features_df.columns) - len(numeric_cols)}")
     
     # Check for constant features (zero variance)
     if len(numeric_cols) > 0:
@@ -220,33 +169,21 @@ def validate_feature_quality(features_df: pd.DataFrame,
                 constant_features.append(col)
         
         if constant_features:
-            logger.warning(f"\nConstant features (zero variance):")
             for col in constant_features:
-                logger.warning(f"  {col}")
                 validation_report['warnings'].append(f"Constant feature: {col}")
     
     # Check 5: Duplicates
     duplicate_count = features_df.duplicated().sum()
     if duplicate_count > 0:
-        logger.warning(f"\nFound {duplicate_count:,} duplicate rows")
         features_df = features_df.drop_duplicates().copy()
-        logger.info(f"  Removed duplicates, remaining: {len(features_df):,}")
         validation_report['warnings'].append(f"Removed {duplicate_count} duplicate rows")
-    else:
-        logger.info(f"[OK] No duplicate rows")
+
     
     # Summary
     validation_report['final_rows'] = len(features_df)
     validation_report['rows_removed'] = initial_count - len(features_df)
     validation_report['retention_rate'] = len(features_df) / initial_count
     
-    logger.info(f"\n{'='*70}")
-    logger.info(f"FEATURE VALIDATION COMPLETE")
-    logger.info(f"{'='*70}")
-    logger.info(f"Final rows: {len(features_df):,}")
-    logger.info(f"Rows removed: {validation_report['rows_removed']:,}")
-    logger.info(f"Retention rate: {validation_report['retention_rate']*100:.1f}%")
-    logger.info(f"{'='*70}\n")
     
     return features_df, validation_report
 
@@ -266,15 +203,12 @@ def filter_by_confidence(tasks_df: pd.DataFrame,
         Filtered DataFrame
     """
     if confidence_col not in tasks_df.columns:
-        logger.warning(f"Column '{confidence_col}' not found, returning original DataFrame")
         return tasks_df
     
     initial_count = len(tasks_df)
     filtered_df = tasks_df[tasks_df[confidence_col] >= min_confidence].copy()
     
     removed = initial_count - len(filtered_df)
-    logger.info(f"Confidence filter (>={min_confidence}): {initial_count:,} -> {len(filtered_df):,} "
-                f"(removed {removed:,})")
     
     return filtered_df
 
@@ -301,7 +235,6 @@ def check_temporal_leakage(features_df: pd.DataFrame,
         2. Features that encode "current" status directly
         3. Features with names suggesting temporal issues
     """
-    logger.info("Checking for temporal leakage...")
     
     leakage_report = {
         'suspicious_features': [],
@@ -322,14 +255,12 @@ def check_temporal_leakage(features_df: pd.DataFrame,
                 leakage_report['warnings'].append(
                     f"Feature '{col}' contains suspicious pattern '{pattern}'"
                 )
-                logger.warning(f"  [WARN]  Suspicious feature name: {col}")
     
     # Check if specific features are present
     if suspicious_features:
         for feat in suspicious_features:
             if feat in features_df.columns:
                 leakage_report['suspicious_features'].append(feat)
-                logger.warning(f"  [WARN]  Known leaky feature present: {feat}")
     
     # Check for features with unrealistically high correlation with target
     if 'is_open' in features_df.columns or 'label' in features_df.columns:
@@ -342,19 +273,11 @@ def check_temporal_leakage(features_df: pd.DataFrame,
             high_corr = correlations[correlations > 0.8]
             
             if len(high_corr) > 0:
-                logger.warning(f"\n  Features with very high correlation (>0.8) to target:")
                 for feat, corr in high_corr.items():
-                    logger.warning(f"    {feat}: {corr:.3f}")
                     leakage_report['warnings'].append(
                         f"High correlation: {feat} ({corr:.3f})"
                     )
     
-    # Summary
-    if len(leakage_report['suspicious_features']) == 0:
-        logger.info("  [OK] No obvious temporal leakage detected")
-    else:
-        logger.warning(f"\n  Found {len(leakage_report['suspicious_features'])} "
-                      f"potentially leaky features")
     
     return leakage_report
 
@@ -378,7 +301,6 @@ def validate_temporal_consistency(tasks_df: pd.DataFrame,
     Returns:
         Dict with validation results
     """
-    logger.info("Validating temporal consistency...")
     
     consistency_report = {
         'valid': True,
@@ -395,9 +317,6 @@ def validate_temporal_consistency(tasks_df: pd.DataFrame,
             consistency_report['issues'].append(
                 f"{invalid_order} tasks have cutoff >= target"
             )
-            logger.error(f"  [FAIL] {invalid_order} tasks with invalid date ordering")
-        else:
-            logger.info(f"  [OK] All cutoff dates before target dates")
         
         consistency_report['checks_performed'].append('date_ordering')
     
@@ -406,7 +325,6 @@ def validate_temporal_consistency(tasks_df: pd.DataFrame,
         min_review_date = reviews_df['date'].min()
         max_review_date = reviews_df['date'].max()
         
-        logger.info(f"  Review date range: {min_review_date.date()} to {max_review_date.date()}")
         
         # Check if any cutoff dates are outside review range
         if 'cutoff_date' in tasks_df.columns:
@@ -419,23 +337,13 @@ def validate_temporal_consistency(tasks_df: pd.DataFrame,
                 consistency_report['issues'].append(
                     f"{cutoff_out_of_range} cutoff dates outside review range"
                 )
-                logger.warning(f"  [WARN]  {cutoff_out_of_range} cutoffs outside review range")
         
         consistency_report['checks_performed'].append('review_date_range')
     
     # Check 3: Feature metadata consistency
     if '_feature_cutoff_date' in features_df.columns:
         unique_cutoffs = features_df['_feature_cutoff_date'].nunique()
-        logger.info(f"  [OK] Features computed at {unique_cutoffs} different cutoff dates")
         consistency_report['checks_performed'].append('feature_cutoff_consistency')
-    
-    # Summary
-    if consistency_report['valid']:
-        logger.info("  [OK] Temporal consistency validation passed")
-    else:
-        logger.error(f"  [FAIL] Found {len(consistency_report['issues'])} consistency issues")
-        for issue in consistency_report['issues']:
-            logger.error(f"     - {issue}")
     
     return consistency_report
 
@@ -529,4 +437,3 @@ def generate_validation_report(validation_results: Dict,
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(report_lines))
     
-    logger.info(f"Validation report saved: {output_path}")

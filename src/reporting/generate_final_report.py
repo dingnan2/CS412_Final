@@ -34,7 +34,6 @@ import pandas as pd
 import numpy as np
 import json
 from pathlib import Path
-import logging
 from datetime import datetime
 from typing import Dict, List
 import shutil
@@ -62,17 +61,6 @@ except ImportError:
         'test_years': [2019, 2020]
     }
     RANDOM_STATE = 42
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/final_report.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 
 class FinalReportGenerator:
@@ -110,60 +98,41 @@ class FinalReportGenerator:
         
         # Results storage
         self.results = {}
-        
-        logger.info(f"Initialized FinalReportGenerator")
-        logger.info(f"  Output: {output_path}")
     
     def collect_results(self):
         """Collect results from all phases."""
-        logger.info("="*70)
-        logger.info("COLLECTING RESULTS FROM ALL PHASES")
-        logger.info("="*70)
-        
         # Preprocessing summary
         preprocessing_summary = self.phase_paths['preprocessing'] / 'cleaning_summary.json'
         if preprocessing_summary.exists():
             with open(preprocessing_summary, 'r') as f:
                 self.results['preprocessing'] = json.load(f)
-            logger.info("[OK] Loaded preprocessing results")
         
         # Baseline model results
         baseline_results = self.phase_paths['baseline'] / 'baseline_results_summary.json'
         if baseline_results.exists():
             with open(baseline_results, 'r') as f:
                 self.results['baseline'] = json.load(f)
-            logger.info("[OK] Loaded baseline results")
         
         # Temporal validation results
         temporal_results = self.phase_paths['temporal'] / 'temporal_validation_results.json'
         if temporal_results.exists():
             with open(temporal_results, 'r') as f:
                 self.results['temporal'] = json.load(f)
-            logger.info("[OK] Loaded temporal validation results")
         
         # Advanced model results
         advanced_results = self.phase_paths['advanced'] / 'advanced_models_results.json'
         if advanced_results.exists():
             with open(advanced_results, 'r') as f:
                 self.results['advanced'] = json.load(f)
-            logger.info("[OK] Loaded advanced model results")
         
         # Ablation study results
         ablation_results = self.phase_paths['ablation'] / 'ablation_results.json'
         if ablation_results.exists():
             with open(ablation_results, 'r') as f:
                 self.results['ablation'] = json.load(f)
-            logger.info("[OK] Loaded ablation study results")
-        
-        logger.info(f"\nCollected results from {len(self.results)} phases")
-        logger.info(f"\n{'='*70}\n")
     
     def collect_figures(self):
         """Collect and organize all figures."""
-        logger.info("="*70)
-        logger.info("COLLECTING FIGURES")
-        logger.info("="*70)
-        
         figure_sources = [
             ('eda', 'src/data_processing/plots'),
             ('baseline', 'src/models/plots'),
@@ -179,7 +148,6 @@ class FinalReportGenerator:
             source_path = Path(source_dir)
             
             if not source_path.exists():
-                logger.warning(f"  {phase}: source directory not found")
                 continue
             
             # Create phase subdirectory
@@ -191,18 +159,9 @@ class FinalReportGenerator:
                 dest_file = phase_figures / fig_file.name
                 shutil.copy2(fig_file, dest_file)
                 copied_count += 1
-            
-            logger.info(f"[OK] {phase}: copied {len(list(source_path.glob('*.png')))} figures")
-        
-        logger.info(f"\nTotal figures collected: {copied_count}")
-        logger.info(f"\n{'='*70}\n")
     
     def generate_markdown_report(self):
         """Generate comprehensive markdown report."""
-        logger.info("="*70)
-        logger.info("GENERATING MARKDOWN REPORT")
-        logger.info("="*70)
-        
         report_path = self.output_path / "final_report.md"
         
         report_lines = []
@@ -836,17 +795,9 @@ class FinalReportGenerator:
         # Write report
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
-        
-        logger.info(f"[OK] Saved markdown report: {report_path}")
-        logger.info(f"  Total lines: {len(report_lines)}")
-        logger.info(f"\n{'='*70}\n")
     
     def generate_latex_report(self):
         """Generate LaTeX version of the report (basic structure)."""
-        logger.info("="*70)
-        logger.info("GENERATING LATEX REPORT")
-        logger.info("="*70)
-        
         latex_path = self.output_path / "final_report.tex"
         
         latex_lines = []
@@ -936,17 +887,9 @@ class FinalReportGenerator:
         # Write LaTeX
         with open(latex_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(latex_lines))
-        
-        logger.info(f"[OK] Saved LaTeX template: {latex_path}")
-        logger.info(f"  Note: Template created - fill content from markdown report")
-        logger.info(f"\n{'='*70}\n")
     
     def generate_readme(self):
         """Generate README.md for the project."""
-        logger.info("="*70)
-        logger.info("GENERATING README")
-        logger.info("="*70)
-        
         readme_path = Path("README.md")
         
         readme_lines = []
@@ -1057,17 +1000,9 @@ class FinalReportGenerator:
         # Write README
         with open(readme_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(readme_lines))
-        
-        logger.info(f"[OK] Saved README: {readme_path}")
-        logger.info(f"\n{'='*70}\n")
     
     def run_pipeline(self):
         """Execute complete report generation pipeline."""
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - FINAL REPORT GENERATION")
-        logger.info("="*70)
-        logger.info("")
-        
         # Step 1: Collect results
         self.collect_results()
         
@@ -1082,16 +1017,6 @@ class FinalReportGenerator:
         
         # Step 5: Generate README
         self.generate_readme()
-        
-        logger.info("\n" + "="*70)
-        logger.info("FINAL REPORT GENERATION COMPLETE!")
-        logger.info("="*70)
-        logger.info(f"\nOutputs:")
-        logger.info(f"  - docs/final_report.md")
-        logger.info(f"  - docs/final_report.tex")
-        logger.info(f"  - docs/figures/ (all figures)")
-        logger.info(f"  - README.md")
-        logger.info("")
 
 
 def main():

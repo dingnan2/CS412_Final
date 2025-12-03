@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import json
 import gc
-import logging
 from pathlib import Path
 from typing import Optional, Dict
 import os
@@ -14,18 +13,6 @@ import warnings
 from datetime import datetime
 
 warnings.filterwarnings('ignore')
-
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('preprocessing.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 
 class DataCleaner:
@@ -43,18 +30,15 @@ class DataCleaner:
     def load_json_data(self, filename: str, sample_size: Optional[int] = None) -> pd.DataFrame:
         """Load JSON file line by line (memory efficient)"""
         filepath = self.raw_path / filename
-        logger.info(f"Loading: {filename}")
 
         data = []
         with open(filepath, 'r', encoding='utf-8') as f:
             for i, line in enumerate(f):
-                try:
-                    data.append(json.loads(line.strip()))
-                except json.JSONDecodeError:
-                    logger.warning(f"Skipped malformed JSON at line {i+1}")
+                
+                data.append(json.loads(line.strip()))
 
         df = pd.DataFrame(data)
-        logger.info(f"Loaded {len(df):,} records from {filename}")
+
         return df
 
     def clean_business_data(self, sample_size: Optional[int] = None) -> pd.DataFrame:
@@ -67,22 +51,16 @@ class DataCleaner:
         4. Keep: business_id, name, address, city, state, stars,
                  review_count, is_open, attributes, categories
         """
-        logger.info("="*70)
-        logger.info("CLEANING BUSINESS DATA")
-        logger.info("="*70)
 
         # Load
         df = self.load_json_data("yelp_academic_dataset_business.json", sample_size)
-        logger.info(f"Original shape: {df.shape}")
         original_cols = list(df.columns)
-        logger.info(f"Original columns: {original_cols}")
         summary = {"input_rows": len(df)}
 
         # Step 1: Remove specified columns
         cols_to_remove = ['postal_code', 'longitude', 'latitude', 'hours']
         existing_to_remove = [col for col in cols_to_remove if col in df.columns]
         df = df.drop(columns=existing_to_remove)
-        logger.info(f"Removed columns: {existing_to_remove}")
 
         # Step 2: Data type conversions
         df['stars'] = pd.to_numeric(df['stars'], errors='coerce')
@@ -90,9 +68,7 @@ class DataCleaner:
         df['is_open'] = df['is_open'].astype(int)
 
         # Step 3: Handle missing values
-        logger.info(f"\nMissing values BEFORE cleaning:")
         missing_before = df.isnull().sum()
-        logger.info(f"\n{missing_before[missing_before > 0]}")
 
         # Numeric columns - fill with median
         stars_missing = int(df['stars'].isna().sum())
@@ -108,19 +84,15 @@ class DataCleaner:
         df['categories'].fillna('', inplace=True)
         df['attributes'].fillna('{}', inplace=True)
 
-        logger.info(f"\nMissing values AFTER cleaning:")
         missing_after = df.isnull().sum()
-        logger.info(f"\n{missing_after[missing_after > 0]}")
 
         # Step 4: Remove duplicates
         before_dup = len(df)
         df = df.drop_duplicates(subset=['business_id'], keep='first')
         after_dup = len(df)
         removed_dups = before_dup - after_dup
-        logger.info(f"\nRemoved {removed_dups:,} duplicate businesses")
 
         # Step 4.5: Handle outliers using IQR method
-        logger.info(f"\nHandling outliers using IQR method:")
         outlier_columns = ['stars', 'review_count']
         total_outliers_handled = 0
 
@@ -135,21 +107,14 @@ class DataCleaner:
                 outliers_count = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
                 if outliers_count > 0:
                     df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
-                    logger.info(f"  {col}: Clipped {outliers_count:,} outliers (range: [{lower_bound:.2f}, {upper_bound:.2f}])")
                     total_outliers_handled += outliers_count
 
         # Step 5: Data quality check
-        logger.info(f"\nData Quality Summary:")
-        logger.info(f"  Final shape: {df.shape}")
-        logger.info(f"  Target distribution (is_open):")
         target_counts = df['is_open'].value_counts()
-        logger.info(f"    Open (1): {target_counts.get(1, 0):,} ({target_counts.get(1, 0)/len(df)*100:.2f}%)")
-        logger.info(f"    Closed (0): {target_counts.get(0, 0):,} ({target_counts.get(0, 0)/len(df)*100:.2f}%)")
 
         # Save
         output_file = self.output_path / "business_clean.csv"
         df.to_csv(output_file, index=False)
-        logger.info(f"\nSaved: {output_file}")
 
         # Update and write summary
         summary.update({
@@ -161,14 +126,11 @@ class DataCleaner:
             "outliers_handled": int(total_outliers_handled),
         })
         self.cleaning_summary["business"] = summary
-        try:
-            # Main summary location under src/data_processing for reporting/final aggregation
-            summary_path = Path("src/data_processing/cleaning_summary.json")
-            summary_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(summary_path, 'w', encoding='utf-8') as f:
-                json.dump(self.cleaning_summary, f, indent=2)
-        except Exception as e:
-            logger.warning(f"Could not write cleaning summary: {e}")
+        # Main summary location under src/data_processing for reporting/final aggregation
+        summary_path = Path("src/data_processing/cleaning_summary.json")
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(self.cleaning_summary, f, indent=2)
 
         return df
 
@@ -181,9 +143,6 @@ class DataCleaner:
         3. Remove duplicates
         4. Keep: review_id, user_id, business_id, stars, text, date, useful, total_count
         """
-        logger.info("="*70)
-        logger.info("CLEANING REVIEW DATA")
-        logger.info("="*70)
 
         filepath = self.raw_path / "yelp_academic_dataset_review.json"
         output_file = self.output_path / "review_clean.csv"
@@ -191,8 +150,6 @@ class DataCleaner:
         if sample_size is not None:
             # Small sample path (in-memory)
             df = self.load_json_data("yelp_academic_dataset_review.json", sample_size)
-            logger.info(f"Original shape: {df.shape}")
-            logger.info(f"Original columns: {list(df.columns)}")
 
             # Combine funny + cool → funny_cool
             df['funny_cool'] = 0
@@ -200,7 +157,6 @@ class DataCleaner:
                 df['funny_cool'] = df['funny_cool'] + df['funny'].fillna(0)
             if 'cool' in df.columns:
                 df['funny_cool'] = df['funny_cool'] + df['cool'].fillna(0)
-            logger.info(f"\nCreated 'funny_cool' = funny + cool")
 
             cols_to_drop = [col for col in ['funny', 'cool'] if col in df.columns]
             if cols_to_drop:
@@ -213,9 +169,7 @@ class DataCleaner:
             df['date'] = pd.to_datetime(df['date'], errors='coerce')
 
             # Missing values
-            logger.info(f"\nMissing values BEFORE cleaning:")
             missing_before = df.isnull().sum()
-            logger.info(f"\n{missing_before[missing_before > 0]}")
             df['stars'].fillna(df['stars'].median(), inplace=True)
             df['useful'].fillna(0, inplace=True)
             df['funny_cool'].fillna(0, inplace=True)
@@ -224,23 +178,18 @@ class DataCleaner:
             # Calculate text length (important feature)
             if 'text' in df.columns:
                 df['text_length'] = df['text'].str.len()
-                logger.info(f"\nCalculated text_length (mean: {df['text_length'].mean():.0f} chars)")
 
             dropped_na_date = int(df['date'].isna().sum())
             df = df.dropna(subset=['date'])
-            logger.info(f"\nMissing values AFTER cleaning:")
             missing_after = df.isnull().sum()
-            logger.info(f"\n{missing_after[missing_after > 0]}")
 
             # Duplicates
             before_dup = len(df)
             df = df.drop_duplicates(subset=['review_id'], keep='first')
             after_dup = len(df)
             removed_dups = before_dup - after_dup
-            logger.info(f"\nRemoved {removed_dups:,} duplicate reviews")
 
             # Handle outliers using IQR method
-            logger.info(f"\nHandling outliers using IQR method:")
             outlier_columns = ['useful', 'funny_cool']
             total_outliers = 0
 
@@ -255,12 +204,10 @@ class DataCleaner:
                     outliers_count = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
                     if outliers_count > 0:
                         df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
-                        logger.info(f"  {col}: Clipped {outliers_count:,} outliers")
                         total_outliers += outliers_count
 
             # Save
             df.to_csv(output_file, index=False)
-            logger.info(f"\nSaved: {output_file}")
             # Summary
             self.cleaning_summary["review"] = {
                 "input_rows": int(len(df) + removed_dups + dropped_na_date),
@@ -268,15 +215,13 @@ class DataCleaner:
                 "duplicates_removed": int(removed_dups),
                 "rows_dropped_invalid_date": int(dropped_na_date),
             }
-            try:
-                with open(self.output_path / "cleaning_summary.json", 'w', encoding='utf-8') as f:
-                    json.dump(self.cleaning_summary, f, indent=2)
-            except Exception as e:
-                logger.warning(f"Could not write cleaning summary: {e}")
+            
+            with open(self.output_path / "cleaning_summary.json", 'w', encoding='utf-8') as f:
+                json.dump(self.cleaning_summary, f, indent=2)
+            
             return df
 
         # Full dataset path (chunked, low-memory)
-        logger.info(f"Streaming and cleaning in chunks: {filepath}")
         if output_file.exists():
             output_file.unlink()
 
@@ -347,7 +292,6 @@ class DataCleaner:
                         total_dups_removed += dups_removed
                         total_rows += line_count
                         total_written += len(df)
-                        logger.info(f"  Wrote chunk: {len(df):,} rows (written total: {total_written:,})")
 
                         # Clear memory
                         chunk_data = []
@@ -407,10 +351,8 @@ class DataCleaner:
             total_dups_removed += dups_removed
             total_rows += len(chunk_data)  # Use chunk_data length
             total_written += len(df)
-            logger.info(f"  Wrote final chunk: {len(df):,} rows (written total: {total_written:,})")
             del df
             gc.collect()
-        logger.info(f"\nSaved: {output_file} (total rows: {total_rows:,})")
         # Save summary
         self.cleaning_summary["review"] = {
             "input_rows": int(total_rows),
@@ -418,13 +360,12 @@ class DataCleaner:
             "duplicates_removed": int(total_dups_removed),
             "rows_dropped_invalid_date": int(total_na_date),
         }
-        try:
-            summary_path = Path("src/data_processing/cleaning_summary.json")
-            summary_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(summary_path, 'w', encoding='utf-8') as f:
-                json.dump(self.cleaning_summary, f, indent=2)
-        except Exception as e:
-            logger.warning(f"Could not write cleaning summary: {e}")
+        
+        summary_path = Path("src/data_processing/cleaning_summary.json")
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(self.cleaning_summary, f, indent=2)
+        
         # Return only schema (empty DF) to keep type contract
         return pd.read_csv(output_file, nrows=0)
 
@@ -437,17 +378,11 @@ class DataCleaner:
         3. Calculate user tenure for weighting
         4. Keep all fields
         """
-        logger.info("="*70)
-        logger.info("CLEANING USER DATA")
-        logger.info("="*70)
 
         filepath = self.raw_path / "yelp_academic_dataset_user.json"
         if sample_size is not None:
             df = self.load_json_data("yelp_academic_dataset_user.json", sample_size)
-            logger.info(f"Original shape: {df.shape}")
-            logger.info(f"Original columns: {list(df.columns)}")
         else:
-            logger.info(f"Streaming and cleaning in chunks: {filepath}")
             output_file = self.output_path / "user_clean.csv"
             if output_file.exists():
                 output_file.unlink()
@@ -514,7 +449,6 @@ class DataCleaner:
                             total_rows += line_count
                             total_written += len(df_chunk)
                             total_dups_removed += dups_removed
-                            logger.info(f"  Wrote user chunk: {len(df_chunk):,} rows (written total: {total_written:,})")
 
                             # Clear memory
                             chunk_data = []
@@ -570,11 +504,9 @@ class DataCleaner:
                 total_rows += len(chunk_data)
                 total_written += len(df_chunk)
                 total_dups_removed += dups_removed
-                logger.info(f"  Wrote final user chunk: {len(df_chunk):,} rows (written total: {total_written:,})")
                 del df_chunk
                 gc.collect()
 
-            logger.info(f"\nSaved: {output_file} (input rows: {total_rows:,}, written rows: {total_written:,})")
             # Save summary
             self.cleaning_summary["user"] = {
                 "input_rows": int(total_rows),
@@ -605,18 +537,13 @@ class DataCleaner:
         df['user_tenure_days'] = (reference_date - df['yelping_since']).dt.days
         df['user_tenure_years'] = df['user_tenure_days'] / 365.25
 
-        logger.info(f"\nCalculated user tenure (days since joining Yelp)")
-        logger.info(f"  Mean tenure: {df['user_tenure_years'].mean():.2f} years")
-        logger.info(f"  Median tenure: {df['user_tenure_years'].median():.2f} years")
 
         has_funny = 'funny' in df.columns
         has_cool = 'cool' in df.columns
         if has_funny or has_cool:
             df['funny_cool'] = (df['funny'].fillna(0) if has_funny else 0) + (df['cool'].fillna(0) if has_cool else 0)
 
-        logger.info(f"\nMissing values BEFORE cleaning:")
         missing_before = df.isnull().sum()
-        logger.info(f"\n{missing_before[missing_before > 0]}")
 
         for col in numeric_cols:
             if col in df.columns:
@@ -629,9 +556,7 @@ class DataCleaner:
         if 'friends' in df.columns:
             df['friends'].fillna('', inplace=True)
 
-        logger.info(f"\nMissing values AFTER cleaning:")
         missing_after = df.isnull().sum()
-        logger.info(f"\n{missing_after[missing_after > 0]}")
 
         drop_cols = [c for c in ['funny', 'cool'] if c in df.columns]
         if drop_cols:
@@ -641,9 +566,7 @@ class DataCleaner:
         df = df.drop_duplicates(subset=['user_id'], keep='first')
         after_dup = len(df)
         removed_dups = before_dup - after_dup
-        logger.info(f"\nRemoved {removed_dups:,} duplicate users")
 
-        logger.info(f"\nHandling outliers using IQR method:")
         outlier_columns = ['review_count', 'useful', 'fans', 'average_stars']
         if 'funny_cool' in df.columns:
             outlier_columns.append('funny_cool')
@@ -660,17 +583,11 @@ class DataCleaner:
                     outliers_count = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
                     if outliers_count > 0:
                         df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
-                        logger.info(f"  {col}: Clipped {outliers_count:,} outliers")
                         total_outliers += outliers_count
 
-        logger.info(f"\nData Quality Summary:")
-        logger.info(f"  Final shape: {df.shape}")
-        logger.info(f"  Average reviews per user: {df['review_count'].mean():.2f}")
-        logger.info(f"  Average useful votes: {df['useful'].mean():.2f}")
 
         output_file = self.output_path / "user_clean.csv"
         df.to_csv(output_file, index=False)
-        logger.info(f"\nSaved: {output_file}")
 
         return df
     
@@ -689,9 +606,6 @@ class DataCleaner:
         Returns:
             Filtered dataframe
         """
-        logger.info("="*70)
-        logger.info("FILTERING LOW-QUALITY BUSINESSES")
-        logger.info("="*70)
         
         initial_count = len(df)
         
@@ -700,7 +614,6 @@ class DataCleaner:
         df = df[df['review_count'] >= min_reviews]
         after_min_reviews = len(df)
         removed_min_reviews = initial_count - after_min_reviews
-        logger.info(f"Removed {removed_min_reviews:,} businesses with < {min_reviews} reviews")
         
         # Filter 2: Suspicious patterns (few reviews + perfect rating)
         # These might be fake or biased entries
@@ -708,17 +621,13 @@ class DataCleaner:
         df = df[~suspicious]
         after_suspicious = len(df)
         removed_suspicious = after_min_reviews - after_suspicious
-        logger.info(f"Removed {removed_suspicious:,} businesses with suspicious patterns")
         
         # Filter 3: Businesses with invalid categories
         df = df[df['categories'].str.len() > 0]
         after_categories = len(df)
         removed_categories = after_suspicious - after_categories
-        logger.info(f"Removed {removed_categories:,} businesses with no categories")
         
         total_removed = initial_count - len(df)
-        logger.info(f"\nTotal removed: {total_removed:,} ({total_removed/initial_count*100:.2f}%)")
-        logger.info(f"Final business count: {len(df):,}")
         
         # Persist quality filter statistics into cleaning_summary for reporting
         business_summary = self.cleaning_summary.get("business", {})
@@ -729,13 +638,11 @@ class DataCleaner:
             "final_after_quality_filter": int(len(df)),
         }
         self.cleaning_summary["business"] = business_summary
-        try:
-            summary_path = Path("src/data_processing/cleaning_summary.json")
-            summary_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(summary_path, 'w', encoding='utf-8') as f:
-                json.dump(self.cleaning_summary, f, indent=2)
-        except Exception as e:
-            logger.warning(f"Could not write cleaning summary (quality_filter): {e}")
+        summary_path = Path("src/data_processing/cleaning_summary.json")
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(self.cleaning_summary, f, indent=2)
+        
 
         return df
 
@@ -746,9 +653,6 @@ class DataCleaner:
         Outputs:
             - src/data_processing/preprocessing_report.md
         """
-        logger.info("="*70)
-        logger.info("GENERATING PREPROCESSING REPORT")
-        logger.info("="*70)
         
         report_path = Path("src/data_processing/preprocessing_report.md")
         report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -756,7 +660,6 @@ class DataCleaner:
         # Load summary data (main copy under src/data_processing)
         summary_file = Path("src/data_processing/cleaning_summary.json")
         if not summary_file.exists():
-            logger.warning("cleaning_summary.json not found, skipping report generation")
             return
         
         with open(summary_file, 'r') as f:
@@ -765,18 +668,10 @@ class DataCleaner:
         # Generate report content
         report_lines = []
         report_lines.append("# Data Preprocessing Report")
-        report_lines.append("")
-        report_lines.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append("")
+
         report_lines.append("---")
         report_lines.append("")
         
-        # Executive Summary
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        report_lines.append("This report documents the data preprocessing pipeline for the Yelp Business Success Prediction project.")
-        report_lines.append("The preprocessing phase includes data cleaning, quality filtering, and preparation for feature engineering.")
-        report_lines.append("")
         
         # Business Data
         if 'business' in summary:
@@ -849,60 +744,10 @@ class DataCleaner:
             report_lines.append(f"2. **Feature engineering**: Created `funny_cool` and `user_tenure_years`")
             report_lines.append("")
         
-        # Data Quality Summary
-        report_lines.append("## 4. Data Quality Summary")
-        report_lines.append("")
-        report_lines.append("### Missing Values")
-        report_lines.append("")
-        report_lines.append("All datasets have been processed to contain **zero missing values** through:")
-        report_lines.append("- Median imputation for numerical features")
-        report_lines.append("- Default values for categorical features")
-        report_lines.append("- Dropping rows with invalid dates")
-        report_lines.append("")
-        
-        report_lines.append("### Outlier Handling")
-        report_lines.append("")
-        report_lines.append("Used IQR (Interquartile Range) method with 1.5×IQR threshold:")
-        report_lines.append("- Outliers clipped to boundary values (not removed)")
-        report_lines.append("- Preserves data volume while reducing extreme values")
-        report_lines.append("")
-        
-        # Output Files
-        report_lines.append("## 5. Output Files")
-        report_lines.append("")
-        report_lines.append("### Processed Datasets")
-        report_lines.append("")
-        report_lines.append("```")
-        report_lines.append("data/processed/")
-        report_lines.append("├── business_clean.csv")
-        report_lines.append("├── review_clean.csv")
-        report_lines.append("├── user_clean.csv")
-        report_lines.append("└── cleaning_summary.json")
-        report_lines.append("```")
-        report_lines.append("")
-        
-        # Next Steps
-        report_lines.append("## 6. Next Steps")
-        report_lines.append("")
-        report_lines.append("1. **Exploratory Data Analysis (EDA)**")
-        report_lines.append("   - Analyze data distributions")
-        report_lines.append("   - Identify patterns and correlations")
-        report_lines.append("   - Generate visualizations")
-        report_lines.append("")
-        report_lines.append("2. **Feature Engineering**")
-        report_lines.append("   - Extract temporal features")
-        report_lines.append("   - Calculate user credibility weights")
-        report_lines.append("   - Generate aggregation features")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        report_lines.append("*Report generated by CS 412 Research Project preprocessing pipeline*")
-        
         # Write report
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"[OK] Saved preprocessing report: {report_path}")
 
     
 def main():

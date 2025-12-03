@@ -10,26 +10,12 @@ Key Features:
 - Consistent interface for all modules
 - Prevents temporal data leakage
 
-Usage:
-    from utils.split_utils import TemporalSplitter
-    
-    splitter = TemporalSplitter(
-        split_type='temporal_holdout',
-        test_size=0.2,
-        random_state=42
-    )
-    
-    X_train, X_test, y_train, y_test, train_idx, test_idx = splitter.split(
-        X, y, metadata=df[['_prediction_year']]
-    )
 """
 
 import numpy as np
 import pandas as pd
 from typing import Tuple, Optional, List
-import logging
 
-logger = logging.getLogger(__name__)
 
 
 class TemporalSplitter:
@@ -67,14 +53,6 @@ class TemporalSplitter:
         if split_type not in valid_types:
             raise ValueError(f"split_type must be one of {valid_types}, got '{split_type}'")
         
-        logger.info(f"Initialized TemporalSplitter:")
-        logger.info(f"  Split type: {split_type}")
-        logger.info(f"  Test size: {test_size}")
-        logger.info(f"  Random state: {random_state}")
-        if train_years:
-            logger.info(f"  Train years: {train_years}")
-        if test_years:
-            logger.info(f"  Test years: {test_years}")
     
     def split(self, 
               X: np.ndarray, 
@@ -116,36 +94,25 @@ class TemporalSplitter:
         
         This is the V2 leakage-free split strategy.
         """
-        logger.info("="*70)
-        logger.info("TEMPORAL HOLDOUT SPLIT (Leakage-Free)")
-        logger.info("="*70)
         
         # Check if metadata is available
         if metadata is None or '_prediction_year' not in metadata.columns:
-            logger.warning("No temporal metadata found (_prediction_year column missing)")
-            logger.warning("Falling back to random split...")
             return self._random_split(X, y)
         
         # Get available years
         years = sorted(metadata['_prediction_year'].unique())
-        logger.info(f"Available years: {years}")
         
         # Determine train/test years
         if self.train_years is not None and self.test_years is not None:
             # Use explicitly specified years
             train_years = self.train_years
             test_years = self.test_years
-            logger.info("Using explicitly specified train/test years")
         else:
             # Automatically split based on test_size
             n_test_years = max(1, int(len(years) * self.test_size))
             train_years = years[:-n_test_years]
             test_years = years[-n_test_years:]
-            logger.info(f"Automatically determined split (test_size={self.test_size})")
         
-        logger.info(f"\nTemporal Holdout Configuration:")
-        logger.info(f"  Train years: {train_years}")
-        logger.info(f"  Test years: {test_years}")
         
         # Create masks
         train_mask = metadata['_prediction_year'].isin(train_years)
@@ -160,28 +127,15 @@ class TemporalSplitter:
         y_train = y[train_indices]
         y_test = y[test_indices]
         
-        # Summary statistics
-        logger.info(f"\n{'='*70}")
-        logger.info(f"TEMPORAL HOLDOUT SUMMARY")
-        logger.info(f"{'='*70}")
-        logger.info(f"Train set: {len(train_indices):,} samples ({len(train_indices)/len(y)*100:.1f}%)")
-        logger.info(f"Test set: {len(test_indices):,} samples ({len(test_indices)/len(y)*100:.1f}%)")
-        
+
         # Check class distribution
         train_class_dist = np.bincount(y_train.astype(int))
         test_class_dist = np.bincount(y_test.astype(int))
-        
-        logger.info(f"\nClass distribution:")
-        logger.info(f"  Train - Class 0: {train_class_dist[0]:,} ({train_class_dist[0]/len(y_train)*100:.1f}%), "
-                   f"Class 1: {train_class_dist[1]:,} ({train_class_dist[1]/len(y_train)*100:.1f}%)")
-        logger.info(f"  Test  - Class 0: {test_class_dist[0]:,} ({test_class_dist[0]/len(y_test)*100:.1f}%), "
-                   f"Class 1: {test_class_dist[1]:,} ({test_class_dist[1]/len(y_test)*100:.1f}%)")
         
         # Validate split
         if len(train_indices) == 0 or len(test_indices) == 0:
             raise ValueError("Split resulted in empty train or test set")
         
-        logger.info(f"\n{'='*70}\n")
         
         return X_train, X_test, y_train, y_test, train_indices, test_indices
     
@@ -193,11 +147,6 @@ class TemporalSplitter:
         """
         from sklearn.model_selection import train_test_split
         
-        logger.info("="*70)
-        logger.info("RANDOM STRATIFIED SPLIT")
-        logger.info("="*70)
-        logger.warning("⚠️  WARNING: Using RANDOM split - may have temporal leakage!")
-        logger.warning("⚠️  This should only be used for comparison purposes.")
         
         # Create indices for tracking
         indices = np.arange(len(X))
@@ -209,9 +158,6 @@ class TemporalSplitter:
             stratify=y
         )
         
-        logger.info(f"Train set: {len(train_idx):,} samples ({len(train_idx)/len(y)*100:.1f}%)")
-        logger.info(f"Test set: {len(test_idx):,} samples ({len(test_idx)/len(y)*100:.1f}%)")
-        logger.info(f"\n{'='*70}\n")
         
         return X_train, X_test, y_train, y_test, train_idx, test_idx
 

@@ -25,7 +25,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-import logging
 import json
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
@@ -56,17 +55,6 @@ try:
 except ImportError:
     SHAP_AVAILABLE = False
     print("WARNING: SHAP not available. Install 'shap' for interpretability analysis.")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/case_study.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Configure plotting
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -133,29 +121,21 @@ class CaseStudyAnalyzer:
         # Case studies
         self.selected_cases = {}
         
-        logger.info(f"Initialized CaseStudyAnalyzer")
-        logger.info(f"  SHAP available: {self.use_shap}")
     
     def load_and_prepare_data(self):
         """Load data and train/load model."""
-        logger.info("="*70)
-        logger.info("LOADING DATA AND MODEL")
-        logger.info("="*70)
         
         # Load features data
         self.df = pd.read_csv(self.data_path)
-        logger.info(f"Loaded features: {self.df.shape}")
         
         # Load business data for location info
         if self.business_path.exists():
             self.business_df = pd.read_csv(self.business_path)
-            logger.info(f"Loaded business data: {self.business_df.shape}")
             # Keep only necessary columns for location lookup
             location_cols = ['business_id', 'name', 'city', 'state', 'categories']
             available_cols = [c for c in location_cols if c in self.business_df.columns]
             self.business_df = self.business_df[available_cols]
         else:
-            logger.warning(f"Business data not found at {self.business_path}, location info will be unavailable")
             self.business_df = None
         
         # Identify features
@@ -173,19 +153,14 @@ class CaseStudyAnalyzer:
         else:
             raise ValueError("No target variable found")
         
-        logger.info(f"Features: {len(self.feature_names)}")
         
         # Temporal HOLDOUT split (V3 - Unified Configuration)
         if '_prediction_year' in self.df.columns:
-            logger.info("Using TEMPORAL HOLDOUT split (V3 - Unified Configuration)...")
-            logger.info("Using SPLIT_CONFIG from config.py for consistency with baseline/advanced models")
             
             # Use SPLIT_CONFIG from config.py - SAME as baseline_models.py and advanced_models.py
             train_years = SPLIT_CONFIG['train_years']
             test_years = SPLIT_CONFIG['test_years']
             
-            logger.info(f"Train years (from config): {train_years}")
-            logger.info(f"Test years (from config): {test_years}")
             
             train_mask = self.df['_prediction_year'].isin(train_years)
             test_mask = self.df['_prediction_year'].isin(test_years)
@@ -218,12 +193,10 @@ class CaseStudyAnalyzer:
         
         # Train or load model
         if self.model_path and self.model_path.exists():
-            logger.info(f"Loading model from {self.model_path}...")
             import pickle
             with open(self.model_path, 'rb') as f:
                 self.model = pickle.load(f)
         else:
-            logger.info("Training new RandomForest model...")
             self.model = RandomForestClassifier(
                 n_estimators=100,
                 max_depth=15,
@@ -243,14 +216,10 @@ class CaseStudyAnalyzer:
         auc = roc_auc_score(self.y_test, self.y_pred_proba)
         f1 = f1_score(self.y_test, self.y_pred)
         
-        logger.info(f"\nModel Performance:")
-        logger.info(f"  ROC-AUC: {auc:.4f}")
-        logger.info(f"  F1: {f1:.4f}")
         
         # Initialize SHAP if enabled
         self.shap_values = None
         if self.use_shap:
-            logger.info("\nInitializing SHAP explainer...")
             try:
                 # Use TreeExplainer for RandomForest (faster)
                 explainer = shap.TreeExplainer(self.model)
@@ -263,13 +232,9 @@ class CaseStudyAnalyzer:
                 else:
                     self.shap_values = shap_values
                     
-                logger.info(f"  SHAP values computed for {len(self.shap_values)} test samples")
             except Exception as e:
-                logger.warning(f"SHAP computation failed: {e}")
-                logger.warning("Falling back to deviation-based analysis")
                 self.shap_values = None
         
-        logger.info(f"\n{'='*70}\n")
     
     def select_interesting_cases(self, n_per_type: int = 5):
         """
@@ -278,9 +243,6 @@ class CaseStudyAnalyzer:
         Args:
             n_per_type: Number of cases to select per type (TP, TN, FP, FN)
         """
-        logger.info("="*70)
-        logger.info("SELECTING INTERESTING CASES")
-        logger.info("="*70)
         
         # Classify predictions
         tp_mask = (self.y_test == 1) & (self.y_pred == 1)  # True Positive
@@ -288,17 +250,12 @@ class CaseStudyAnalyzer:
         fp_mask = (self.y_test == 0) & (self.y_pred == 1)  # False Positive
         fn_mask = (self.y_test == 1) & (self.y_pred == 0)  # False Negative
         
-        logger.info(f"True Positives: {tp_mask.sum():,}")
-        logger.info(f"True Negatives: {tn_mask.sum():,}")
-        logger.info(f"False Positives: {fp_mask.sum():,}")
-        logger.info(f"False Negatives: {fn_mask.sum():,}")
         
         # Select cases with highest/lowest confidence for each type
         def select_cases(mask, case_type, n):
             indices = np.where(mask)[0]
             
             if len(indices) == 0:
-                logger.warning(f"No {case_type} cases found")
                 return []
             
             # Get probabilities for these cases
@@ -327,11 +284,7 @@ class CaseStudyAnalyzer:
         self.selected_cases['FP'] = select_cases(fp_mask, 'FP', n_per_type)
         self.selected_cases['FN'] = select_cases(fn_mask, 'FN', n_per_type)
         
-        logger.info(f"\nSelected cases:")
-        for case_type, indices in self.selected_cases.items():
-            logger.info(f"  {case_type}: {len(indices)}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def analyze_case(self, test_idx, case_type: str) -> Dict:
         """
@@ -487,14 +440,10 @@ class CaseStudyAnalyzer:
     
     def generate_case_reports(self):
         """Generate detailed reports for selected cases."""
-        logger.info("="*70)
-        logger.info("GENERATING CASE REPORTS")
-        logger.info("="*70)
         
         all_analyses = {}
         
         for case_type, indices in self.selected_cases.items():
-            logger.info(f"\nAnalyzing {case_type} cases...")
             
             case_analyses = []
             
@@ -509,17 +458,12 @@ class CaseStudyAnalyzer:
             with open(case_file, 'w') as f:
                 json.dump(case_analyses, f, indent=2)
             
-            logger.info(f"  Saved {len(case_analyses)} cases to {case_file}")
         
-        logger.info(f"\n{'='*70}\n")
         
         return all_analyses
     
     def generate_visualizations(self, all_analyses: Dict):
         """Generate case study visualizations."""
-        logger.info("="*70)
-        logger.info("GENERATING VISUALIZATIONS")
-        logger.info("="*70)
         
         # Feature importance comparison across case types
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -560,9 +504,7 @@ class CaseStudyAnalyzer:
         plt.savefig(self.plots_path / 'case_feature_importance.png', dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info("[OK] Saved: case_feature_importance.png")
         
-        logger.info(f"\n{'='*70}\n")
     
     def analyze_error_feature_distribution(self):
         """
@@ -576,9 +518,6 @@ class CaseStudyAnalyzer:
         """
         from scipy import stats
         
-        logger.info("\n" + "="*70)
-        logger.info("QUANTITATIVE ERROR ANALYSIS")
-        logger.info("="*70)
         
         # Get error masks
         fp_mask = (self.y_test == 0) & (self.y_pred == 1)  # False Positive
@@ -594,11 +533,8 @@ class CaseStudyAnalyzer:
         for error_type, mask in error_types.items():
             n_errors = mask.sum()
             if n_errors == 0:
-                logger.info(f"\n{error_type}: No cases found")
                 continue
                 
-            logger.info(f"\n{error_type} Analysis:")
-            logger.info(f"  Count: {n_errors}")
             
             error_features = self.X_test[mask]
             overall_features = self.X_test
@@ -654,14 +590,7 @@ class CaseStudyAnalyzer:
             # Sort by absolute effect size
             significant_features.sort(key=lambda x: abs(x['effect_size']), reverse=True)
             
-            # Log top 10
-            logger.info(f"\n  Top 10 discriminative features:")
-            for i, feat in enumerate(significant_features[:10], 1):
-                logger.info(f"    {i}. {feat['feature']}")
-                logger.info(f"       Error mean: {feat['error_mean']:.4f}, "
-                           f"Overall mean: {feat['overall_mean']:.4f}")
-                logger.info(f"       Effect size (Cohen's d): {feat['effect_size']:.4f}, "
-                           f"p-value: {feat['p_value']:.4e}")
+            
             
             all_results[error_type] = significant_features
         
@@ -669,178 +598,8 @@ class CaseStudyAnalyzer:
         results_file = self.output_path / 'error_feature_analysis.json'
         with open(results_file, 'w') as f:
             json.dump(all_results, f, indent=2)
-        logger.info(f"\n[OK] Saved: {results_file}")
         
         return all_results
-    
-    def generate_report(self, all_analyses: Dict):
-        """Generate comprehensive case study report."""
-        logger.info("="*70)
-        logger.info("GENERATING REPORT")
-        logger.info("="*70)
-        
-        report_path = self.output_path / "case_study_report.md"
-        
-        report_lines = []
-        report_lines.append("# Case Study Report")
-        report_lines.append("")
-        report_lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        report_lines.append("This report presents detailed analysis of selected prediction cases.")
-        report_lines.append("Cases are selected from four categories:")
-        report_lines.append("")
-        report_lines.append("- **True Positives (TP)**: Correctly predicted to stay open")
-        report_lines.append("- **True Negatives (TN)**: Correctly predicted to close")
-        report_lines.append("- **False Positives (FP)**: Predicted to stay open but closed")
-        report_lines.append("- **False Negatives (FN)**: Predicted to close but stayed open")
-        report_lines.append("")
-        
-        # Analyze each case type
-        for case_type in ['TP', 'TN', 'FP', 'FN']:
-            if case_type not in all_analyses or len(all_analyses[case_type]) == 0:
-                continue
-            
-            report_lines.append(f"## {case_type} Cases")
-            report_lines.append("")
-            
-            # Description
-            descriptions = {
-                'TP': "Businesses correctly predicted to remain open.",
-                'TN': "Businesses correctly predicted to close.",
-                'FP': "Businesses predicted to stay open but actually closed (model errors).",
-                'FN': "Businesses predicted to close but actually stayed open (model errors)."
-            }
-            report_lines.append(descriptions[case_type])
-            report_lines.append("")
-            
-            # Analyze patterns
-            cases = all_analyses[case_type]
-            
-            # Get common features
-            all_top_features = {}
-            for case in cases:
-                for feat in case['top_features'].keys():
-                    all_top_features[feat] = all_top_features.get(feat, 0) + 1
-            
-            common_features = sorted(all_top_features.items(), 
-                                   key=lambda x: x[1], 
-                                   reverse=True)[:5]
-            
-            report_lines.append("**Common Important Features:**")
-            report_lines.append("")
-            for feat, count in common_features:
-                report_lines.append(f"- `{feat}` (in {count}/{len(cases)} cases)")
-            report_lines.append("")
-            
-            # Sample case
-            if len(cases) > 0:
-                sample = cases[0]
-                report_lines.append("**Sample Case:**")
-                report_lines.append("")
-                report_lines.append(f"- **Business ID**: {sample['business_id']}")
-                report_lines.append(f"- **Business Name**: {sample.get('business_name', 'Unknown')}")
-                report_lines.append(f"- **Location**: {sample['city']}, {sample['state']}")
-                report_lines.append(f"- **Categories**: {sample.get('categories', 'Unknown')}")
-                report_lines.append(f"- **Prediction Year**: {sample['prediction_year']}")
-                report_lines.append(f"- **Prediction Probability**: {sample['prediction_probability']:.3f}")
-                report_lines.append("")
-                
-                report_lines.append("Top Contributing Features:")
-                report_lines.append("")
-                for i, (feat, info) in enumerate(list(sample['top_features'].items())[:5], 1):
-                    value = info.get('value', 0)
-                    if isinstance(value, (int, float)):
-                        value_str = f"{value:.3f}"
-                    else:
-                        value_str = str(value)
-                    
-                    # Add direction info if available (from SHAP or deviation analysis)
-                    direction = info.get('direction', '')
-                    if direction:
-                        report_lines.append(f"{i}. **{feat}**: {value_str} ({direction})")
-                    else:
-                        report_lines.append(f"{i}. **{feat}**: {value_str}")
-                report_lines.append("")
-                
-            # Add case-specific pattern analysis for errors (FP and FN)
-            if case_type in ['FP', 'FN'] and len(cases) > 0:
-                report_lines.append(f"**Why the model made this error ({case_type}):**")
-                report_lines.append("")
-                
-                # Analyze feature patterns that distinguish this error type
-                avg_deviation = {}
-                for case in cases:
-                    for feat, info in case['top_features'].items():
-                        if 'deviation_from_reference' in info:
-                            if feat not in avg_deviation:
-                                avg_deviation[feat] = []
-                            avg_deviation[feat].append(info['deviation_from_reference'])
-                
-                if avg_deviation:
-                    report_lines.append("Key distinguishing features (vs correctly predicted cases):")
-                    report_lines.append("")
-                    try:
-                        sorted_features = sorted(avg_deviation.items(), 
-                                                key=lambda x: abs(float(np.mean(x[1]))), 
-                                                reverse=True)[:3]
-                        for feat, devs in sorted_features:
-                            avg_dev = float(np.mean(devs))
-                            direction = "higher" if avg_dev > 0 else "lower"
-                            report_lines.append(f"- `{feat}`: {direction} than expected ({avg_dev:+.2f}σ)")
-                    except Exception as e:
-                        report_lines.append(f"- Error computing deviations: {e}")
-                    report_lines.append("")
-        
-        report_lines.append("## Key Insights")
-        report_lines.append("")
-        
-        # FP insights
-        if 'FP' in all_analyses and len(all_analyses['FP']) > 0:
-            report_lines.append("### False Positives (Prediction Errors)")
-            report_lines.append("")
-            report_lines.append("Common patterns in businesses predicted to stay open but closed:")
-            report_lines.append("")
-            report_lines.append("- May have had stable historical performance")
-            report_lines.append("- Recent decline not captured by current features")
-            report_lines.append("- External factors (location changes, competition) not modeled")
-            report_lines.append("")
-        
-        # FN insights
-        if 'FN' in all_analyses and len(all_analyses['FN']) > 0:
-            report_lines.append("### False Negatives (Missed Survivors)")
-            report_lines.append("")
-            report_lines.append("Common patterns in businesses predicted to close but stayed open:")
-            report_lines.append("")
-            report_lines.append("- May have had temporary difficulties")
-            report_lines.append("- Recovery signals not captured")
-            report_lines.append("- Strong intangible factors (loyal customer base, unique offerings)")
-            report_lines.append("")
-        
-        report_lines.append("## Recommendations")
-        report_lines.append("")
-        report_lines.append("Based on case study analysis:")
-        report_lines.append("")
-        report_lines.append("1. **Feature Engineering**: Add features capturing recent trends more accurately")
-        report_lines.append("2. **External Data**: Consider incorporating location-based economic indicators")
-        report_lines.append("3. **Temporal Dynamics**: Better model recovery patterns after temporary decline")
-        report_lines.append("4. **Ensemble Methods**: Combine models with different strengths to reduce errors")
-        report_lines.append("")
-        
-        report_lines.append("---")
-        report_lines.append("")
-        report_lines.append("*Report generated by CS 412 Research Project case study pipeline*")
-        
-        # Write report
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(report_lines))
-        
-        logger.info(f"[OK] Saved report: {report_path}")
-        logger.info(f"\n{'='*70}\n")
     
     def run_pipeline(self, n_cases_per_type: int = 5):
         """
@@ -849,10 +608,6 @@ class CaseStudyAnalyzer:
         Args:
             n_cases_per_type: Number of cases to analyze per type
         """
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - CASE STUDY")
-        logger.info("="*70)
-        logger.info("")
         
         # Step 1: Load data and model
         self.load_and_prepare_data()
@@ -869,14 +624,6 @@ class CaseStudyAnalyzer:
         # Step 5: Quantitative error analysis (NEW)
         self.analyze_error_feature_distribution()
         
-        # Step 6: Generate report
-        self.generate_report(all_analyses)
-        
-        logger.info("\n" + "="*70)
-        logger.info("CASE STUDY COMPLETE!")
-        logger.info("="*70)
-        logger.info(f"\nOutputs saved to: {self.output_path}")
-        logger.info("")
 
 
 def main():

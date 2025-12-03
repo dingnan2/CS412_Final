@@ -24,7 +24,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-import logging
 import json
 import pickle
 from datetime import datetime
@@ -79,17 +78,6 @@ try:
 except ImportError:
     MLP_AVAILABLE = False
     print("WARNING: MLPClassifier not available.")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/advanced_models.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Configure plotting
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -149,20 +137,12 @@ class AdvancedModelPipeline:
         self.models = {}
         self.results = {}
         
-        logger.info(f"Initialized AdvancedModelPipeline")
-        logger.info(f"  Temporal split: {use_temporal_split}")
-        logger.info(f"  COVID handling: {handle_covid}")
-        logger.info(f"  Hyperparameter tuning: {tune_hyperparameters}")
     
     def load_and_prepare_data(self):
         """Load data and prepare train/test split."""
-        logger.info("="*70)
-        logger.info("LOADING AND PREPARING DATA")
-        logger.info("="*70)
         
         # Load data
         self.df = pd.read_csv(self.data_path)
-        logger.info(f"Loaded data: {self.df.shape}")
         
         # Identify metadata and feature columns
         metadata_cols = [c for c in self.df.columns if c.startswith('_')]
@@ -171,12 +151,9 @@ class AdvancedModelPipeline:
         feature_cols = [c for c in self.df.columns if c not in metadata_cols]
         self.feature_names = feature_cols
         
-        logger.info(f"Features: {len(feature_cols)}")
-        logger.info(f"Metadata: {len(metadata_cols)}")
         
         # Handle COVID period if requested
         if self.handle_covid and '_prediction_year' in self.df.columns:
-            logger.info("\nAdding COVID period indicator...")
             self.df['is_covid_period'] = (
                 (self.df['_prediction_year'] >= 2020) & 
                 (self.df['_prediction_year'] <= 2021)
@@ -186,7 +163,6 @@ class AdvancedModelPipeline:
             feature_cols.append('is_covid_period')
             
             covid_count = self.df['is_covid_period'].sum()
-            logger.info(f"  COVID period tasks: {covid_count:,} ({covid_count/len(self.df)*100:.1f}%)")
         
         # Extract features and target
         X = self.df[feature_cols].values
@@ -194,27 +170,20 @@ class AdvancedModelPipeline:
         # Use 'label' if available (from temporal validation), otherwise 'is_open'
         if 'label' in self.df.columns:
             y = self.df['label'].values
-            logger.info("Using 'label' column as target (from temporal validation)")
         elif 'is_open' in self.df.columns:
             y = self.df['is_open'].values
-            logger.info("Using 'is_open' column as target")
         else:
             raise ValueError("No target variable found ('label' or 'is_open')")
         
         # Temporal HOLDOUT split (V3 - Unified Configuration)
         if self.use_temporal_split and '_prediction_year' in self.df.columns:
-            logger.info("\nPerforming TEMPORAL HOLDOUT split (V3 - Unified Configuration)...")
-            logger.info("Using SPLIT_CONFIG from config.py for consistency with baseline models")
             
             available_years = sorted(self.df['_prediction_year'].unique())
-            logger.info(f"Available years in data: {available_years}")
             
             # Use SPLIT_CONFIG from config.py - SAME as baseline_models.py
             train_years = SPLIT_CONFIG['train_years']
             test_years = SPLIT_CONFIG['test_years']
             
-            logger.info(f"Train years (from config): {train_years}")
-            logger.info(f"Test years (from config): {test_years}")
             
             train_mask = self.df['_prediction_year'].isin(train_years)
             test_mask = self.df['_prediction_year'].isin(test_years)
@@ -227,11 +196,9 @@ class AdvancedModelPipeline:
             y_train = y[train_indices]
             y_test = y[test_indices]
             
-            logger.info(f"  Train: {len(train_indices):,}, Test: {len(test_indices):,}")
         
         else:
             # Random split
-            logger.info("\nPerforming random stratified split...")
             
             from sklearn.model_selection import train_test_split
             X_train, X_test, y_train, y_test = train_test_split(
@@ -241,34 +208,25 @@ class AdvancedModelPipeline:
                 stratify=y
             )
             
-            logger.info(f"  Train: {len(X_train):,}, Test: {len(X_test):,}")
         
         # Scale features
-        logger.info("\nScaling features...")
         self.scaler = StandardScaler()
         self.X_train = self.scaler.fit_transform(X_train)
         self.X_test = self.scaler.transform(X_test)
         self.y_train = y_train
         self.y_test = y_test
         
-        logger.info("[OK] Data preparation complete")
-        logger.info(f"\n{'='*70}\n")
     
     def train_xgboost(self):
         """Train XGBoost model with optional hyperparameter tuning."""
         if not XGBOOST_AVAILABLE:
-            logger.warning("XGBoost not available, skipping...")
             return
         
-        logger.info("="*70)
-        logger.info("TRAINING XGBOOST")
-        logger.info("="*70)
         
         # Calculate scale_pos_weight for class imbalance
         scale_pos_weight = len(self.y_train[self.y_train == 0]) / len(self.y_train[self.y_train == 1])
         
         if self.tune_hyperparameters:
-            logger.info("Performing hyperparameter tuning (this may take a while)...")
             
             param_grid = {
                 'max_depth': [8, 10, 12],
@@ -300,11 +258,8 @@ class AdvancedModelPipeline:
             grid_search.fit(self.X_train, self.y_train)
             
             best_model = grid_search.best_estimator_
-            logger.info(f"Best parameters: {grid_search.best_params_}")
-            logger.info(f"Best CV score: {grid_search.best_score_:.4f}")
         
         else:
-            logger.info("Using OPTIMIZED hyperparameters (V2)...")
             
             best_model = xgb.XGBClassifier(
                 max_depth=10,              # Increased from 6
@@ -341,35 +296,23 @@ class AdvancedModelPipeline:
         self.models['XGBoost'] = best_model
         self.results['XGBoost'] = results
         
-        logger.info(f"\nXGBoost Results:")
-        logger.info(f"  ROC-AUC: {results['roc_auc']:.4f}")
-        logger.info(f"  Precision: {results['precision']:.4f}")
-        logger.info(f"  Recall: {results['recall']:.4f}")
-        logger.info(f"  F1: {results['f1']:.4f}")
         
         # Save model
         model_file = self.models_path / "xgboost_model.pkl"
         with open(model_file, 'wb') as f:
             pickle.dump(best_model, f)
-        logger.info(f"[OK] Saved model: {model_file}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def train_lightgbm(self):
         """Train LightGBM model."""
         if not LIGHTGBM_AVAILABLE:
-            logger.warning("LightGBM not available, skipping...")
             return
         
-        logger.info("="*70)
-        logger.info("TRAINING LIGHTGBM")
-        logger.info("="*70)
         
         # Calculate class weight
         scale_pos_weight = len(self.y_train[self.y_train == 0]) / len(self.y_train[self.y_train == 1])
         
         if self.tune_hyperparameters:
-            logger.info("Performing hyperparameter tuning...")
             
             param_grid = {
                 'num_leaves': [31, 50, 70],
@@ -396,10 +339,8 @@ class AdvancedModelPipeline:
             grid_search.fit(self.X_train, self.y_train)
             
             best_model = grid_search.best_estimator_
-            logger.info(f"Best parameters: {grid_search.best_params_}")
         
         else:
-            logger.info("Using OPTIMIZED hyperparameters (V2)...")
             
             best_model = lgb.LGBMClassifier(
                 num_leaves=31,             # Reduced for better generalization
@@ -437,32 +378,20 @@ class AdvancedModelPipeline:
         self.models['LightGBM'] = best_model
         self.results['LightGBM'] = results
         
-        logger.info(f"\nLightGBM Results:")
-        logger.info(f"  ROC-AUC: {results['roc_auc']:.4f}")
-        logger.info(f"  Precision: {results['precision']:.4f}")
-        logger.info(f"  Recall: {results['recall']:.4f}")
-        logger.info(f"  F1: {results['f1']:.4f}")
         
         # Save model
         model_file = self.models_path / "lightgbm_model.pkl"
         with open(model_file, 'wb') as f:
             pickle.dump(best_model, f)
-        logger.info(f"[OK] Saved model: {model_file}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def train_neural_network(self):
         """Train Neural Network (MLP) model."""
         if not MLP_AVAILABLE:
-            logger.warning("MLPClassifier not available, skipping...")
             return
         
-        logger.info("="*70)
-        logger.info("TRAINING NEURAL NETWORK (MLP)")
-        logger.info("="*70)
         
         if self.tune_hyperparameters:
-            logger.info("Performing hyperparameter tuning...")
             
             param_grid = {
                 'hidden_layer_sizes': [(100,), (100, 50), (50, 50, 50)],
@@ -490,10 +419,8 @@ class AdvancedModelPipeline:
             grid_search.fit(self.X_train, self.y_train)
             
             best_model = grid_search.best_estimator_
-            logger.info(f"Best parameters: {grid_search.best_params_}")
         
         else:
-            logger.info("Using OPTIMIZED hyperparameters (V2)...")
             
             best_model = MLPClassifier(
                 hidden_layer_sizes=(128, 64, 32),  # Increased from (100, 50)
@@ -529,25 +456,15 @@ class AdvancedModelPipeline:
         self.models['NeuralNetwork'] = best_model
         self.results['NeuralNetwork'] = results
         
-        logger.info(f"\nNeural Network Results:")
-        logger.info(f"  ROC-AUC: {results['roc_auc']:.4f}")
-        logger.info(f"  Precision: {results['precision']:.4f}")
-        logger.info(f"  Recall: {results['recall']:.4f}")
-        logger.info(f"  F1: {results['f1']:.4f}")
         
         # Save model
         model_file = self.models_path / "neural_network_model.pkl"
         with open(model_file, 'wb') as f:
             pickle.dump(best_model, f)
-        logger.info(f"[OK] Saved model: {model_file}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def train_ensemble(self):
         """Train ensemble models (voting and stacking)."""
-        logger.info("="*70)
-        logger.info("TRAINING ENSEMBLE MODELS")
-        logger.info("="*70)
         
         # Check available models
         available_models = []
@@ -560,13 +477,10 @@ class AdvancedModelPipeline:
             available_models.append(('nn', self.models['NeuralNetwork']))
         
         if len(available_models) < 2:
-            logger.warning("Need at least 2 models for ensemble, skipping...")
             return
         
-        logger.info(f"Building ensemble with {len(available_models)} models")
         
         # Voting Classifier
-        logger.info("\nTraining Voting Classifier...")
         
         voting_clf = VotingClassifier(
             estimators=available_models,
@@ -590,12 +504,8 @@ class AdvancedModelPipeline:
         self.models['Ensemble_Voting'] = voting_clf
         self.results['Ensemble_Voting'] = results
         
-        logger.info(f"Voting Ensemble Results:")
-        logger.info(f"  ROC-AUC: {results['roc_auc']:.4f}")
-        logger.info(f"  F1: {results['f1']:.4f}")
         
         # Stacking Classifier
-        logger.info("\nTraining Stacking Classifier...")
         
         stacking_clf = StackingClassifier(
             estimators=available_models,
@@ -620,20 +530,12 @@ class AdvancedModelPipeline:
         self.models['Ensemble_Stacking'] = stacking_clf
         self.results['Ensemble_Stacking'] = results
         
-        logger.info(f"Stacking Ensemble Results:")
-        logger.info(f"  ROC-AUC: {results['roc_auc']:.4f}")
-        logger.info(f"  F1: {results['f1']:.4f}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def generate_visualizations(self):
         """Generate comparison visualizations."""
-        logger.info("="*70)
-        logger.info("GENERATING VISUALIZATIONS")
-        logger.info("="*70)
         
         if not self.results:
-            logger.warning("No results to visualize")
             return
         
         # Model comparison bar chart
@@ -662,121 +564,7 @@ class AdvancedModelPipeline:
         plt.savefig(self.plots_path / 'advanced_models_comparison.png', dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"[OK] Saved: advanced_models_comparison.png")
         
-        logger.info(f"\n{'='*70}\n")
-    
-    def generate_report(self):
-        """Generate comprehensive markdown report."""
-        logger.info("="*70)
-        logger.info("GENERATING REPORT")
-        logger.info("="*70)
-        
-        report_path = self.output_path / "advanced_models_report.md"
-        
-        report_lines = []
-        report_lines.append("# Advanced Models Report")
-        report_lines.append("")
-        report_lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        report_lines.append("This report presents results from advanced machine learning models:")
-        report_lines.append("- XGBoost (Gradient Boosting)")
-        report_lines.append("- LightGBM (Efficient Gradient Boosting)")
-        report_lines.append("- Neural Network (Multi-layer Perceptron)")
-        report_lines.append("- Ensemble Methods (Voting & Stacking)")
-        report_lines.append("")
-        
-        if self.handle_covid:
-            report_lines.append("**COVID Period Handling:** Enabled (2020-2021 marked as special period)")
-            report_lines.append("")
-        
-        report_lines.append("## Model Performance")
-        report_lines.append("")
-        
-        if self.results:
-            report_lines.append("| Model | ROC-AUC | Precision | Recall | F1 |")
-            report_lines.append("|-------|---------|-----------|--------|-----|")
-            
-            # Sort by ROC-AUC
-            sorted_results = sorted(self.results.items(), 
-                                   key=lambda x: x[1]['roc_auc'], 
-                                   reverse=True)
-            
-            for model_name, metrics in sorted_results:
-                # Use consistent 4 decimal places for all metrics
-                report_lines.append(
-                    f"| {model_name} | {metrics['roc_auc']:.4f} | "
-                    f"{metrics['precision']:.4f} | {metrics['recall']:.4f} | "
-                    f"{metrics['f1']:.4f} |"
-                )
-            
-            report_lines.append("")
-            
-            # Best model
-            best_model = sorted_results[0]
-            report_lines.append(f"**Best Model:** {best_model[0]} (ROC-AUC: {best_model[1]['roc_auc']:.4f})")
-            report_lines.append("")
-        
-        report_lines.append("## Key Findings")
-        report_lines.append("")
-        report_lines.append("### Advanced vs Baseline Models")
-        report_lines.append("")
-        report_lines.append("Advanced models typically show 2-5% improvement over baselines:")
-        report_lines.append("- Better handling of non-linear relationships")
-        report_lines.append("- More sophisticated feature interactions")
-        report_lines.append("- Ensemble methods combine strengths of individual models")
-        report_lines.append("")
-        
-        report_lines.append("### Model Characteristics")
-        report_lines.append("")
-        report_lines.append("**XGBoost:**")
-        report_lines.append("- Excellent for structured data")
-        report_lines.append("- Handles missing values well")
-        report_lines.append("- Provides feature importance")
-        report_lines.append("")
-        
-        report_lines.append("**LightGBM:**")
-        report_lines.append("- Faster training than XGBoost")
-        report_lines.append("- Lower memory usage")
-        report_lines.append("- Good for large datasets")
-        report_lines.append("")
-        
-        report_lines.append("**Neural Network:**")
-        report_lines.append("- Captures complex patterns")
-        report_lines.append("- Requires careful tuning")
-        report_lines.append("- May overfit on small data")
-        report_lines.append("")
-        
-        report_lines.append("**Ensemble:**")
-        report_lines.append("- Combines multiple models")
-        report_lines.append("- Often achieves best performance")
-        report_lines.append("- More robust predictions")
-        report_lines.append("")
-        
-        if self.handle_covid:
-            report_lines.append("### COVID Period Impact")
-            report_lines.append("")
-            report_lines.append("The COVID period (2020-2021) showed distinct patterns:")
-            report_lines.append("- Higher closure rates overall")
-            report_lines.append("- Different feature importance")
-            report_lines.append("- Adding period indicator improved predictions")
-            report_lines.append("")
-        
-        report_lines.append("---")
-        report_lines.append("")
-        report_lines.append("*Report generated by CS 412 Research Project advanced models pipeline*")
-        
-        # Write report
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(report_lines))
-        
-        logger.info(f"[OK] Saved report: {report_path}")
-        logger.info(f"\n{'='*70}\n")
     
     def _create_temporal_cv_splits(self, n_splits: int = 3):
         """
@@ -797,7 +585,6 @@ class AdvancedModelPipeline:
         
         if len(years) < n_splits + 1:
             n_splits = len(years) - 1
-            logger.warning(f"Adjusted CV splits to {n_splits}")
         
         cv_splits = []
         
@@ -830,14 +617,10 @@ class AdvancedModelPipeline:
         Returns:
             Best estimator and best parameters
         """
-        logger.info(f"\n{'='*70}")
-        logger.info(f"HYPERPARAMETER TUNING: {model_name}")
-        logger.info(f"{'='*70}")
         
         # Define parameter grids
         if model_name == 'XGBoost':
             if not XGBOOST_AVAILABLE:
-                logger.error("XGBoost not available")
                 return None, None
             param_grid = {
                 'n_estimators': [50, 100, 200],
@@ -864,7 +647,6 @@ class AdvancedModelPipeline:
         
         elif model_name == 'LightGBM':
             if not LIGHTGBM_AVAILABLE:
-                logger.error("LightGBM not available")
                 return None, None
             param_grid = {
                 'n_estimators': [50, 100, 200],
@@ -877,17 +659,12 @@ class AdvancedModelPipeline:
         else:
             raise ValueError(f"Unknown model: {model_name}")
         
-        logger.info(f"Parameter grid: {param_grid}")
         total_combinations = np.prod([len(v) for v in param_grid.values()])
-        logger.info(f"Total combinations: {total_combinations}")
         
         # Create temporal CV splits
         try:
             cv_splits = self._create_temporal_cv_splits(n_splits=n_cv_splits)
-            logger.info(f"Created {len(cv_splits)} temporal CV splits")
         except Exception as e:
-            logger.warning(f"Failed to create temporal CV splits: {e}")
-            logger.info("Falling back to standard 3-fold CV")
             cv_splits = 3
         
         # Grid search
@@ -901,19 +678,15 @@ class AdvancedModelPipeline:
             return_train_score=True
         )
         
-        logger.info(f"\nStarting grid search...")
         grid_search.fit(self.X_train, self.y_train)
         
         # Log results
-        logger.info(f"\nBest parameters: {grid_search.best_params_}")
-        logger.info(f"Best CV score (AUC): {grid_search.best_score_:.4f}")
         
         # Evaluate on test set
         best_model = grid_search.best_estimator_
         y_pred_proba = best_model.predict_proba(self.X_test)[:, 1]
         test_auc = roc_auc_score(self.y_test, y_pred_proba)
         
-        logger.info(f"Test set AUC: {test_auc:.4f}")
         
         # Save tuning results
         tuning_results = {
@@ -927,7 +700,6 @@ class AdvancedModelPipeline:
         with open(tuning_file, 'w') as f:
             json.dump(tuning_results, f, indent=2)
         
-        logger.info(f"\n[OK] Saved tuning results: {tuning_file}")
         
         return best_model, grid_search.best_params_
     
@@ -937,80 +709,58 @@ class AdvancedModelPipeline:
         
         Tests whether the best model is significantly better than baseline.
         """
-        logger.info("\n" + "="*70)
-        logger.info("STATISTICAL SIGNIFICANCE TESTING")
-        logger.info("="*70)
         
-        try:
-            # Import statistical tester
-            import sys
-            sys.path.append(str(Path(__file__).parent.parent))
-            from evaluation.statistical_tests import StatisticalTester
+        
+        # Import statistical tester
+        import sys
+        sys.path.append(str(Path(__file__).parent.parent))
+        from evaluation.statistical_tests import StatisticalTester
             
-            tester = StatisticalTester(random_state=self.random_state)
+        tester = StatisticalTester(random_state=self.random_state)
             
-            # Get predictions from results
-            model_names = list(self.results.keys())
-            if len(model_names) < 2:
-                logger.warning("Not enough models for comparison")
-                return
+        # Get predictions from results
+        model_names = list(self.results.keys())
+        if len(model_names) < 2:
+            return
             
-            # Find best model (by AUC)
-            best_model = max(self.results.items(), key=lambda x: x[1].get('roc_auc', 0))
-            best_name = best_model[0]
+        # Find best model (by AUC)
+        best_model = max(self.results.items(), key=lambda x: x[1].get('roc_auc', 0))
+        best_name = best_model[0]
             
-            # Use first individual model as baseline (not ensemble)
-            baseline_candidates = [n for n in model_names if 'Ensemble' not in n]
-            if not baseline_candidates:
-                baseline_name = model_names[0]
-            else:
-                baseline_name = baseline_candidates[0]
+        # Use first individual model as baseline (not ensemble)
+        baseline_candidates = [n for n in model_names if 'Ensemble' not in n]
+        if not baseline_candidates:
+            baseline_name = model_names[0]
+        else:
+            baseline_name = baseline_candidates[0]
             
-            logger.info(f"Comparing: {best_name} vs {baseline_name} (baseline)")
+        best_auc = self.results[best_name]['roc_auc']
+        baseline_auc = self.results[baseline_name]['roc_auc']
             
-            # Get predictions (need to re-predict since we only stored metrics)
-            # For now, just log the comparison
-            best_auc = self.results[best_name]['roc_auc']
-            baseline_auc = self.results[baseline_name]['roc_auc']
+        improvement = best_auc - baseline_auc
+        pct_improvement = (improvement / baseline_auc) * 100
             
-            improvement = best_auc - baseline_auc
-            pct_improvement = (improvement / baseline_auc) * 100
             
-            logger.info(f"\nModel Performance Comparison:")
-            logger.info(f"  Baseline ({baseline_name}): AUC = {baseline_auc:.4f}")
-            logger.info(f"  Best ({best_name}): AUC = {best_auc:.4f}")
-            logger.info(f"  Improvement: +{improvement:.4f} ({pct_improvement:+.2f}%)")
+        # Note about full statistical testing
             
-            # Note about full statistical testing
-            logger.info(f"\nNote: For full bootstrap CI, run:")
-            logger.info(f"  from evaluation.statistical_tests import StatisticalTester")
-            logger.info(f"  tester = StatisticalTester()")
-            logger.info(f"  result = tester.bootstrap_confidence_interval(y_true, pred1, pred2)")
+        # Save comparison
+        comparison = {
+            'baseline_model': baseline_name,
+            'baseline_auc': float(baseline_auc),
+            'best_model': best_name,
+            'best_auc': float(best_auc),
+            'improvement': float(improvement),
+            'pct_improvement': float(pct_improvement)
+        }
             
-            # Save comparison
-            comparison = {
-                'baseline_model': baseline_name,
-                'baseline_auc': float(baseline_auc),
-                'best_model': best_name,
-                'best_auc': float(best_auc),
-                'improvement': float(improvement),
-                'pct_improvement': float(pct_improvement)
-            }
+        comparison_file = self.output_path / 'model_comparison_summary.json'
+        with open(comparison_file, 'w') as f:
+            json.dump(comparison, f, indent=2)
             
-            comparison_file = self.output_path / 'model_comparison_summary.json'
-            with open(comparison_file, 'w') as f:
-                json.dump(comparison, f, indent=2)
-            logger.info(f"\n[OK] Saved: {comparison_file}")
-            
-        except Exception as e:
-            logger.warning(f"Statistical testing skipped: {e}")
+
     
     def run_pipeline(self):
         """Execute complete advanced models pipeline."""
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - ADVANCED MODELS")
-        logger.info("="*70)
-        logger.info("")
         
         # Step 1: Load and prepare data
         self.load_and_prepare_data()
@@ -1026,23 +776,14 @@ class AdvancedModelPipeline:
         # Step 4: Generate visualizations
         self.generate_visualizations()
         
-        # Step 5: Generate report
-        self.generate_report()
-        
-        # Step 6: Save results
+        # Step 5: Save results
         results_file = self.output_path / "advanced_models_results.json"
         with open(results_file, 'w') as f:
             json.dump(self.results, f, indent=2)
-        logger.info(f"[OK] Saved results: {results_file}")
         
         # Step 7: Statistical significance testing (NEW)
         self._run_statistical_tests()
         
-        logger.info("\n" + "="*70)
-        logger.info("ADVANCED MODELS COMPLETE!")
-        logger.info("="*70)
-        logger.info(f"\nOutputs saved to: {self.output_path}")
-        logger.info("")
 
 
 def main():

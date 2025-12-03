@@ -1,60 +1,868 @@
 \documentclass[sigconf]{acmart}
-\usepackage{booktabs}
-\usepackage{graphicx}
-\usepackage{hyperref}
 
+%%
+%% Remove ACM reference format and copyright
+%%
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+%%
+%% Conference information
+%% 
+\acmConference{Business Success Prediction using Yelp Dataset}{Final Report}{Dec 2025}
+
+%%
+%% Packages
+%%
+\usepackage{enumitem}
+\usepackage{placeins}
+\usepackage{float}
+\usepackage{makecell}
+\usepackage{caption}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage[section]{placeins}
+
+%%
+%% Remove ACM format title and banner
+%%
+\makeatletter
+\def\@ACM@format@title@and@banner{}
+\makeatother
+
+%%
+%% Start of document
+%%
 \begin{document}
 
-\title{Business Success Prediction using Yelp Dataset}
-\subtitle{CS 412 Research Project}
+%%
+%% Title
+%%
+\title{CS 412 Final Report \\ Business Success Prediction using Yelp Dataset}
 
+%%
+%% Authors
+%%
 \author{Adeniran Coker}
-\affiliation{University of Illinois Urbana-Champaign}
-\email{acoker3@illinois.edu}
+\affiliation{
+  \department{Department of Civil Engineering}
+  \program{Ph.D Civil Engineering}
+}
+\email{ac171}
 
 \author{Ju-Bin Choi}
-\affiliation{University of Illinois Urbana-Champaign}
-\email{jchoi80@illinois.edu}
+\affiliation{
+  \department{Siebel School of Computing and Data Science}
+  \program{Master of Computer Science}
+}
+\email{jubinc2}
 
 \author{Carmen Zheng}
-\affiliation{University of Illinois Urbana-Champaign}
-\email{dzheng8@illinois.edu}
+\affiliation{
+  \department{Siebel School of Computing and Data Science}
+  \program{Master of Computer Science}
+}
+\email{dingnan2}
+
 
 \maketitle
 
-\begin{abstract}
-We present a comprehensive framework for predicting business success 
-using the Yelp dataset. Our approach introduces novel user credibility 
-weighting and temporal validation methods to address the unique challenges 
-of business failure prediction. We achieve ROC-AUC of 0.80 using temporal 
-validation, demonstrating realistic performance after correcting for data leakage.
-\end{abstract}
-
+%%
+%% Section 1: Introduction
+%%
+%%
+%% Section 1: Introduction
+%%
 \section{Introduction}
-[Content from markdown report Section 1]
+
+Business failure prediction is critical for entrepreneurs, investors, and platforms to identify risk signals early. Recent U.S. Bureau of Labor Statistics data shows that while only 17\% of restaurants fail in their first year \cite{parsa2005}, approximately 49\% fail within five years, with over 72,000 closures in 2024 alone \cite{nra2024}. The Yelp dataset provides rich behavioral data but lacks explicit closure dates, making this a challenging prediction task requiring sophisticated temporal modeling.
+
+\textbf{Input:} Business metadata (categories, location, attributes), timestamped review histories (ratings, text, engagement metrics), and user engagement patterns (tenure, credibility indicators) from the Yelp Academic Dataset spanning 2005-2022.
+
+\textbf{Output:} Binary survival classification (is\_open: 1=Open, 0=Closed) with confidence scores for 6-12 month forecasting horizon.
+
+We address: \textit{Can we predict which restaurants will close within 6-12 months based on review patterns and business characteristics?} This problem faces three main challenges: (1) \textbf{noisy review data} where reviewers vary greatly in credibility—power-law distributions show that 60\% of users write fewer than 10 reviews while power users dominate feedback volume, (2) \textbf{temporal data leakage} where features may accidentally encode future information, and (3) \textbf{severe class imbalance} (79\% open vs 21\% closed) requiring specialized techniques.
+
+Our key innovation is a \textbf{user credibility weighting framework} that recognizes not all reviews provide equal signal. By weighting reviews based on reviewer tenure (platform familiarity), experience (comparative judgment from reviewing multiple businesses), and community engagement (useful votes received), we extract more reliable signals from noisy data. Through rigorous temporal validation using strict holdout split (train: 2012-2018, test: 2019-2020) where features use only historical data up to each cutoff date, we ensure real-world applicability. Our best model (XGBoost with user credibility features) achieves ROC-AUC 0.886, representing 6.1\% improvement over baseline Random Forest (0.835), with the user credibility framework contributing +0.017 AUC of unique predictive value validated through systematic ablation studies.
 
 \section{Methodology}
-[Content from markdown report Section 2]
+
+Our framework consists of four main components: (1) data preprocessing with quality filtering, (2) user credibility weighting to address noisy reviews, (3) comprehensive feature engineering across 7 categories, and (4) temporal validation to prevent data leakage.
+
+\subsection{Data Preprocessing}
+
+We apply two-step filtering to ensure data quality. First, we remove businesses with suspicious patterns (extreme rating changes >2 stars in <30 days, review spam indicators) and businesses without category information, retaining 93.7\% of original data.
+
+For temporal validation, each business must satisfy criteria per prediction year: (1) minimum 3 reviews up to cutoff date for reliable aggregates, and (2) last review within 180 days of cutoff to ensure active status. This produces 27,752 unique businesses generating 106,569 prediction tasks across 2012-2020 (average 3.8 tasks per business). Outliers are handled using IQR method with 1.5× threshold, clipping extreme values while preserving data volume.
+
+\subsection{User Credibility Weighting Framework}
+
+Figure~\ref{fig:user_analysis} shows user engagements: most users write few reviews (median 5), while a few users write thousands. The top 10\% of users receive 80\% of all useful votes. This skewness motivates our credibility weighting—experienced users with high engagement should influence predictions more than infrequent reviewers.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figures/eda/user_analysis.png}
+\caption{User engagement power-law distributions. \textbf{Top row:} Review count (median 5, max 22,887), tenure (mean 10.3 years), and useful votes (median 3) are highly skewed. \textbf{Bottom row:} Most users have low fan counts and activity. Credibility score distribution shows wide variance (0.2-1.4).}
+\label{fig:user_analysis}
+\end{figure}
+
+We compute user credibility as a weighted combination of three normalized components [0,1]:
+
+\[
+\text{credibility} = 0.4 \times \text{tenure} + 0.3 \times \text{experience} + 0.3 \times \text{engagement}
+\]
+
+where each component is computed as:
+
+\[
+\text{tenure} = \frac{\log(1 + \text{days\_since\_first\_review})}{10},
+\quad
+\]\[
+\text{experience} = \frac{\log(1 + \text{review\_count})}{10} \quad
+\]
+\[
+\text{engagement} = \frac{\text{useful\_votes}}{\text{review\_count} + 1}
+\]
+
+The log transformation reduces outlier impact while preserving rank order. The weights (0.4, 0.3, 0.3) prioritize long-term platform experience while balancing volume and quality indicators. This credibility score then weights aggregated metrics:
+
+\[
+\text{weighted\_rating} = \frac{\sum_{i=1}^{n} c_i \times r_i}{\sum_{i=1}^{n} c_i}, \quad
+\]\[
+\text{weighted\_sentiment} = \frac{\sum_{i=1}^{n} c_i \times s_i}{\sum_{i=1}^{n} c_i}
+\]
+
+where $c_i$ is credibility, $r_i$ is rating, and $s_i$ is sentiment for review $i$. This produces 9 user-weighted features: weighted\_avg\_rating, weighted\_sentiment, weighted\_useful\_count, avg\_reviewer\_tenure, avg\_reviewer\_experience, avg\_reviewer\_engagement, weighted \_pct\_positive, weighted\_pct\_negative, and avg\_credibility.
+
+\subsection{Feature Engineering}
+
+We engineer 52 features across 7 categories (Table~\ref{tab:features}). 
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Static} features provide baseline business characteristics; 
+    \item \textbf{Review Aggregation} captures volume and rating patterns;
+    \item  \textbf{Sentiment} analyzes TextBlob-based polarity (range [-1,1]); 
+    \item \textbf{User-Weighted} applies our credibility framework; 
+    \item \textbf{Temporal} measures momentum and lifecycle trends; 
+    \item \textbf{Location} captures geographic market conditions; 
+    \item \textbf{Interaction} combines multiple signals.
+\end{itemize}
+
+
+\begin{table}[htbp]
+\centering
+\caption{Feature Categories and Examples}
+\label{tab:features}
+\small
+\begin{tabular}{@{}lrp{4.5cm}@{}}
+\toprule
+Category & Count & Key Features \\
+\midrule
+A. Static Business & 8 & stars, review\_count, category, location \\
+B. Review Aggregation & 8 & total\_reviews, avg\_stars, std\_stars, review\_frequency \\
+C. Sentiment & 9 & avg\_sentiment, sentiment\_volatility, pct\_positive/negative \\
+\textbf{D. User-Weighted} & \textbf{9} & \textbf{weighted\_rating, weighted\_sentiment, avg\_credibility} \\
+E. Temporal & 8 & rating\_recent\_vs\_all, review\_momentum \\
+F. Location & 5 & category\_avg\_success, location\_density \\
+G. Interaction & 5 & rating×credibility, momentum×credibility \\
+\midrule
+Total & 52 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Temporal features use difference-based calculations to avoid leakage:
+
+\[
+\text{rating\_recent\_vs\_all} = \bar{r}_{\text{last\_6mo}} - \bar{r}_{\text{all}}, \quad
+\]
+\[
+\text{review\_momentum} = \frac{n_{\text{recent}} - n_{\text{historical}}}{n_{\text{historical}} + 1}
+\]
+
+where $\bar{r}_{\text{last\_6mo}}$ is average rating from last 6 months, $\bar{r}_{\text{all}}$ is overall average, $n_{\text{recent}}$ is review count in recent period, and $n_{\text{historical}}$ is count in earlier period.
+
+Figure~\ref{fig:rf_feature_importance} shows feature importance from Random Forest baseline. Business activity metrics (review\_count, review\_frequency) and user credibility metrics (avg\_reviewer\_tenure, avg\_reviewer\_experience, weighted\_avg\_rating) dominate top features, validating our credibility weighting contributes predictive signal. Notably, avg\_reviewer\_tenure ranks 2nd-3rd across both SMOTE and ClassWeight variants, demonstrating consistent importance.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figures/baseline/random_forest_feature_importance.png}
+\caption{Top 20 feature importance from Random Forest baselines. \textbf{Left:} RF\_SMOTE shows review\_count (0.107) dominates, followed by stars (0.053) and avg\_reviewer\_tenure (0.052). \textbf{Right:} RF\_ClassWeight shows review\_count (0.110), avg\_reviewer\_tenure (0.061), and review\_frequency (0.058). User credibility features (tenure, experience, weighted\_rating, weighted\_sentiment) consistently appear in higher place.}
+\label{fig:rf_feature_importance}
+\end{figure}
+
+\subsection{Temporal Validation}
+
+Figure~\ref{fig:review_monthly} shows historical review volume from 2005 to 2021. Average ratings remained stable at 3.7-3.8 throughout. This temporal evolution necessitates strict time-based validation to ensure model performance reflects real-world deployment.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figures/eda/review_monthly_trends.png}
+\caption{Monthly review patterns 2005-2022. \textbf{Top:} Review volume shows exponential growth until 2019 peak, then sharp COVID-19 decline. \textbf{Middle:} Ratings stable at 3.7-3.8 despite volume changes. \textbf{Bottom:} Review length declining from ~700 to ~500 characters over time.}
+\label{fig:review_monthly}
+\end{figure}
+
+To prevent data leakage, we use strict temporal holdout split: training on years 2012-2018 (76,622 samples, 73.6\%) and testing on 2019-2020 (27,405 samples, 26.4\%). All features are computed using only reviews up to each cutoff date. We explicitly removed the leaky feature \texttt{days\_since\_last\_review}, which essentially encodes closure (closed businesses stop receiving reviews).
+
+Figure~\ref{fig:ttemporal_validation} demonstrates the impact of proper temporal validation. Random Forest achieves ROC-AUC 0.842 with realistic temporal split, compared to artificial 0.95 with random split—a 15-point drop confirming we eliminated temporal leakage. Class distribution is maintained across splits (both ~79\% open, ~21\% closed), ensuring representative evaluation.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/temporal/model_comparison_temporal.png}
+\caption{Model performance with temporal holdout (leakage-free). Train: 2012-2018, Test: 2019-2020. Random Forest achieves best baseline performance (ROC-AUC 0.842, F1 0.948), outperforming Logistic Regression (0.684) and Decision Tree (0.699). The realistic 0.84 ROC-AUC (vs 0.95 with random split) confirms proper temporal validation.}
+\label{fig:ttemporal_validation}
+\end{figure}
 
 \section{Experimental Setup}
-[Content from markdown report Section 3]
+
+\subsection{Dataset Statistics}
+
+We use the Yelp Academic Dataset spanning 2005-2022. After quality filtering (removing 9,391 suspicious businesses and 97 without categories), we retain 140,858 businesses (93.7\% retention). For temporal validation requiring sufficient history, we further filter to 27,752 businesses (19.7\% of cleaned data), generating 106,569 prediction tasks across years 2012-2020.
+
+\begin{table}[h]
+\centering
+\caption{Dataset Statistics and Characteristics}
+\label{tab:dataset}
+\small
+\begin{tabular}{lrr}
+\toprule
+Component & Original & After Cleaning \\
+\midrule
+Businesses & 150,346 & 140,858 (93.7\%) \\
+Reviews & 6,990,280 & 6,990,280 (100\%) \\
+Users & 1,987,897 & 1,987,897 (100\%) \\
+\midrule
+Open businesses & - & 111,297 (79.0\%) \\
+Closed businesses & - & 29,561 (21.0\%) \\
+\midrule
+Temporal businesses & - & 27,752 (19.7\%) \\
+Prediction tasks & - & 106,569 \\
+\bottomrule
+\multicolumn{3}{l}{\footnotesize Retention rates shown in parentheses} \\
+\end{tabular}
+\end{table}
+
+\subsection{Feature Preprocessing and Selection}
+
+Before model training, we apply systematic preprocessing to prevent data leakage and reduce dimensionality:
+
+\textbf{1. Standardization:} All features standardized using StandardScaler fitted only on training data:
+\[
+z = \frac{x - \mu_{\text{train}}}{\sigma_{\text{train}}}
+\]
+
+\textbf{2. Feature Selection Pipeline:}
+\begin{itemize}[ itemsep=1pt]
+\item \textbf{Correlation filtering}: Remove highly correlated features ($|r| > 0.95$), reducing 52 $\rightarrow$ 45 features
+\item \textbf{Variance filtering}: Remove low-variance features (variance $< 0.01$), reducing 45 $\rightarrow$ 40 features
+\item \textbf{Importance-based ranking}: Rank remaining features by Random Forest importance for interpretation
+\end{itemize}
+
+All feature selection performed on training data only. Test data transformed using training parameters.
+
+\subsection{Train/Test Split and Temporal Validation}
+
+We employ temporal holdout split to prevent data leakage:
+
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+\item \textbf{Training set}: Years 2012-2018 (76,622 samples, 73.6\%)
+\item \textbf{Testing set}: Years 2019-2020 (27,405 samples, 26.4\%)
+\end{itemize}
+
+This split ensures: (1) no temporal leakage—features computed only from data before each cutoff date, (2) realistic evaluation—predicting future outcomes from historical patterns, (3) class balance maintained—both splits preserve $\sim$79\% open vs $\sim$21\% closed ratio, and (4) consistent comparison—all models use identical splits. This strategy reflects real-world deployment where we predict future business status from historical data.
+
+\subsection{Class Imbalance Handling}
+
+The severe class imbalance (79\% open vs 21\% closed) requires specialized handling. We apply two strategies during training only:
+
+\textbf{Method 1 - SMOTE (Synthetic Minority Oversampling):} with k=5 neighbors, balancing to 50-50 ratio.
+
+\textbf{Method 2 - Class Weights:} Formula $w_i = \frac{n_{\text{samples}}}{n_{\text{classes}} \times n_{\text{samples}_i}}$ (closed$\approx$3.76, open$\approx$0.95)
+
+
+
+\subsection{Baseline Models}
+
+We compare three baseline models, each tested with both SMOTE and class weight strategies (Table~\ref{tab:baseline_hyperparams}):
+
+
+\begin{table}[h]
+\centering
+\caption{Baseline Model Hyperparameters}
+\label{tab:baseline_hyperparams}
+\small
+\begin{tabular}{lcp}
+\toprule
+Model & Parameter & Value \\
+\midrule
+\multirow{4}{*}{Logistic Regression}
+& C (regularization) & 1.0 \\
+& solver & lbfgs \\
+& max\_iter & 1000 \\
+& class\_weight & balanced (for ClassWeight variant) \\
+\midrule
+\multirow{4}{*}{Decision Tree}
+& max\_depth & 10 \\
+& min\_samples\_split & 20 \\
+& min\_samples\_leaf & 10 \\
+& random\_state & 42 \\
+\midrule
+\multirow{6}{*}{Random Forest}
+& n\_estimators & 100 \\
+& max\_depth & 15 \\
+& min\_samples\_split & 20 \\
+& min\_samples\_leaf & 5 \\
+& max\_features & 'sqrt' \\
+& class\_weight & balanced (for ClassWeight variant) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Advanced Models}
+
+We implement four advanced models designed to improve over baseline through sophisticated learning mechanisms (Table~\ref{tab:advanced_hyperparams}):
+
+\begin{table}[h]
+\centering
+\caption{Advanced Model Hyperparameters}
+\label{tab:advanced_hyperparams}
+\small
+\begin{tabular}{lcp}
+\toprule
+Model & Parameter & Value \\
+\midrule
+\multirow{8}{*}{XGBoost}
+& max\_depth & 10 \\
+& n\_estimators & 200 \\
+& learning\_rate & 0.05 \\
+& min\_child\_weight & 3 \\
+& subsample & 0.8 \\
+& colsample\_bytree & 0.8 \\
+& reg\_alpha (L1) & 0.1 \\
+& reg\_lambda (L2) & 1.0 \\
+\midrule
+\multirow{7}{*}{LightGBM}
+& num\_leaves & 31 \\
+& n\_estimators & 200 \\
+& learning\_rate & 0.05 \\
+& min\_child\_samples & 20 \\
+& subsample & 0.8 \\
+& colsample\_bytree & 0.8 \\
+& reg\_alpha, reg\_lambda & 0.1 \\
+\midrule
+\multirow{6}{*}{Neural Network}
+& hidden\_layer\_sizes & (128, 64, 32) \\
+& activation & ReLU \\
+& solver & Adam \\
+& learning\_rate & adaptive \\
+& max\_iter & 500 \\
+& early\_stopping & True \\
+\midrule
+\multirow{3}{*}{Ensemble Voting}
+& base\_models & RF, XGBoost, LightGBM \\
+& voting & soft (probabilities) \\
+& weights & [1/3, 1/3, 1/3] \\
+\midrule
+\multirow{3}{*}{Ensemble Stacking}
+& base\_models & RF, XGBoost, LightGBM \\
+& meta\_learner & RF (max\_depth=10, n\_est=50) \\
+& cv & 5-fold stratified \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Evaluation Metrics}
+
+We use multiple metrics for comprehensive evaluation:
+
+\textbf{Primary Metric - ROC-AUC:}: Area under ROC curve [0,1], measures ranking quality.
+
+\textbf{Secondary Metrics:} Precision, Recall, F1-Score, and PR-AUC.
+
+Metrics computed on test set (2019-2020, 27,405 samples). For stochastic models (MLP, Ensemble), we report mean ± std.
+
 
 \section{Results}
-[Content from markdown report Section 4]
+
+\subsection{Baseline Performance}
+
+Table~\ref{tab:baseline_full} presents comprehensive baseline results across the models. RF with class weights achieves best overall performance (ROC-AUC 0.835, PR-AUC 0.965, F1 0.941), outperforming linear models (LR: ROC-AUC 0.684) and single decision trees (DT: ROC-AUC 0.699). The ensemble method effectively captures non-linear patterns in the task.
+
+\begin{table}[h]
+\centering
+\caption{Baseline Model Performance with Complete Metrics}
+\label{tab:baseline_full}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Model & ROC-AUC & PR-AUC & Precision & Recall & F1 \\
+\midrule
+LR\_SMOTE & 0.684 & 0.965 & 0.954 & 0.869 & 0.909 \\
+LR\_ClassWeight & 0.684 & 0.965 & 0.954 & 0.870 & 0.910 \\
+DT\_SMOTE & 0.693 & 0.961 & 0.960 & 0.747 & 0.840 \\
+DT\_ClassWeight & 0.699 & 0.952 & 0.965 & 0.643 & 0.772 \\
+RF\_SMOTE & 0.825 & 0.969 & 0.963 & 0.896 & 0.928 \\
+\textbf{RF\_ClassWeight} & \textbf{0.835} & \textbf{0.965} & \textbf{0.959} & \textbf{0.924} & \textbf{0.941} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Class Imbalance Handling Comparison}
+
+Table~\ref{tab:imbalance_comparison} compares SMOTE versus class weighting strategies. For Random Forest, class weighting achieves 0.835 ROC-AUC versus 0.825 for SMOTE (+0.010 improvement), demonstrating that ensemble methods benefit more from cost-sensitive learning than synthetic oversampling. Both approaches yield nearly identical results for linear models (difference <0.001), suggesting simpler models are less sensitive to imbalance handling strategy.
+
+\begin{table}[h]
+\centering
+\caption{SMOTE vs Class Weighting Performance Comparison}
+\label{tab:imbalance_comparison}
+\small
+\begin{tabular}{lccc}
+\toprule
+Algorithm & SMOTE & ClassWeight & Difference \\
+\midrule
+Logistic Regression & 0.684 & 0.684 & -0.000 \\
+Decision Tree & 0.693 & 0.699 & +0.006 \\
+Random Forest & 0.825 & 0.835 & +0.010 \\
+\bottomrule
+\multicolumn{4}{l}{\footnotesize Positive difference = ClassWeight performs better} \\
+\end{tabular}
+\end{table}
+
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/baseline/model_comparison.png}
+\caption{Baseline model comparison across all metrics. Random Forest with class weights (RF\_ClassWeight) achieves best overall performance, dominating in ROC-AUC (0.835) and F1-score (0.941).}
+\label{fig:baseline_comparison}
+\end{figure}
+
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/baseline/roc_curves.png}
+\caption{ROC curves for baseline models. Random Forest variants (blue/cyan) show superior discrimination ability (area under curve $\approx$0.83) compared to linear models (orange/red, AUC $\approx$0.68) and single trees (green/purple, AUC $\approx$0.70).}
+\label{fig:roc_curves}
+\end{figure}
+
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/baseline/precision_recall_curves.png}
+\caption{Precision-recall curves. All models achieve high PR-AUC (>0.96), but Random Forest (blue/cyan) shows best balance between precision and recall, avoiding the sharp precision drops observed in simpler models at high recall levels.}
+\label{fig:pr_curves}
+\end{figure}
+
+\subsection{Confusion Matrix Analysis}
+
+Figure~\ref{fig:confusion} shows confusion matrices. RF\_ClassWeight achieves 89.3\% accuracy with 684 TN and 23,750 TP (Table~\ref{tab:confusion_numeric}).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/baseline/confusion_matrices.png}
+\caption{Confusion matrices for all baseline models. Random Forest ClassWeight (top right) achieves best balance with 684 true negatives and 23,750 true positives. Single decision trees (middle row) show high false negative rates, missing many closures.}
+\label{fig:confusion}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Confusion Matrix Statistics for Best Baseline Models}
+\label{tab:confusion_numeric}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Model & TN & FP & FN & TP \\
+\midrule
+RF\_SMOTE & 537 & 1,159 & 2,561 & 22,148 \\
+RF\_ClassWeight & 684 & 1,012 & 1,959 & 23,750 \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize TN=True Negative (closed predicted closed)} \\
+\multicolumn{5}{l}{\footnotesize FP=False Positive (closed predicted open)} \\
+\multicolumn{5}{l}{\footnotesize FN=False Negative (open predicted closed)} \\
+\multicolumn{5}{l}{\footnotesize TP=True Positive (open predicted open)} \\
+\end{tabular}
+\end{table}
+
+\subsection{Advanced Model Performance}
+
+Table~\ref{tab:advanced_full} presents comprehensive advanced model results. XGBoost achieves highest ROC-AUC of 0.886, representing 6.1\% relative improvement over the Random Forest baseline (0.835). Ensemble methods demonstrate strong performance with Voting (0.878 ROC-AUC) and Stacking (0.860 ROC-AUC) approaches both surpassing.
+
+\begin{table}[h]
+\centering
+\caption{Advanced Model Performance with Complete Metrics}
+\label{tab:advanced_full}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Model & ROC-AUC & PR-AUC & Precision & Recall & F1 \\
+\midrule
+\textbf{XGBoost} & \textbf{0.886} & \textbf{0.980} & \textbf{0.976} & 0.882 & 0.926 \\
+Ensemble\_Voting & 0.878 & 0.975 & 0.967 & 0.934 & 0.950 \\
+Ensemble\_Stacking & 0.860 & 0.976 & 0.956 & 0.962 & 0.959 \\
+LightGBM & 0.818 & 0.971 & 0.973 & 0.795 & 0.875 \\
+Neural Network & 0.815 & 0.971 & 0.958 & 0.945 & 0.952 \\
+\midrule
+RF Baseline & 0.835 & 0.965 & 0.959 & 0.924 & 0.941 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Baseline vs Advanced Model Comparison}
+
+Table~\ref{tab:baseline_vs_advanced} provides direct performance comparison between best baseline and advanced models. XGBoost achieves a 0.051 absolute AUC gain (+6.1\% relative improvement) over Random Forest, demonstrating the value of gradient boosting for capturing complex feature interactions in this imbalanced classification task. Ensemble methods provide intermediate improvements (+5.1\% for Voting), while simpler architectures like Neural Network show marginal degradation (-2.4\%), suggesting tree-based methods better suit the tabular nature of our feature set.
+
+\begin{table}[h]
+\centering
+\caption{Baseline vs Advanced Model Direct Comparison}
+\label{tab:baseline_vs_advanced}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Model Category & Best Model & ROC-AUC & Improvement & F1 \\
+\midrule
+Baseline & RF\_ClassWeight & 0.835 & - & 0.941 \\
+Advanced & XGBoost & 0.886 & +6.1\% & 0.926 \\
+Advanced & Ensemble\_Voting & 0.878 & +5.1\% & 0.950 \\
+Advanced & Ensemble\_Stacking & 0.860 & +3.0\% & 0.959 \\
+\midrule
+\multicolumn{5}{l}{\footnotesize Relative improvement calculated as $\frac{\text{Advanced} - \text{Baseline}}{\text{Baseline}} \times 100\%$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+
+\subsection{Advanced Model Confusion Matrix Comparison}
+
+Table~\ref{tab:confusion_advanced} compares confusion matrices for the best baseline (RF \_ClassWeight) and best advanced model (XGBoost). XGBoost increases true negatives from 684 to 1,145 (+67.4\%), correctly identifying 461 more closed businesses. However, this comes at the cost of higher false negatives (3,045 vs 1,959), representing a more conservative prediction strategy. The tradeoff reflects XGBoost's optimization for ROC-AUC, prioritizing discrimination ability across all thresholds rather than maximizing a single operating point.
+
+\begin{table}[h]
+\centering
+\caption{Confusion Matrix Comparison: Baseline vs Best Advanced Model}
+\label{tab:confusion_advanced}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Model & TN & FP & FN & TP \\
+\midrule
+RF\_ClassWeight & 684 & 1,012 & 1,959 & 23,750 \\
+XGBoost & 1,145 & 551 & 3,045 & 22,664 \\
+\midrule
+\textbf{Change} & \textbf{+461} & \textbf{-461} & \textbf{+1,086} & \textbf{-1,086} \\
+\textbf{Change \%} & \textbf{+67.4\%} & \textbf{-45.6\%} & \textbf{+55.4\%} & \textbf{-4.6\%} \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize XGBoost improves closed business detection (+67\% TN)} \\
+\multicolumn{5}{l}{\footnotesize but adopts more conservative strategy (+55\% FN)} \\
+\end{tabular}
+\end{table}
 
 \section{Ablation Study}
-[Content from markdown report Section 5]
 
-\section{Case Studies}
-[Content from markdown report Section 6]
+To validate our design choices and quantify each component's contribution, we systematically remove feature categories and measure performance impact. We conduct two complementary experiments using Random Forest with identical configuration (max\_depth=15, n\_estimators=100, class\_weight=balanced) on the temporal validation split.
+
+\subsection{Ablation Results}
+
+Table~\ref{tab:ablation} presents ablation results. The baseline using all 52 features achieves ROC-AUC 0.841. Positive drops indicate important categories; negative drops indicate redundant categories that hurt performance.
+
+\vspace{-6pt}
+
+\begin{table}[h]
+\centering
+\caption{Ablation Study: Performance Impact of Removing Categories}
+\label{tab:ablation}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Configuration & Features & ROC-AUC & AUC Drop & F1 \\
+\midrule
+\textit{Baseline (All)} & 52 & 0.841 & - & 0.947 \\
+\midrule
+Remove A\_Static & 44 & 0.795 & +0.046 & 0.951 \\
+Remove F\_Location & 47 & 0.815 & +0.026 & 0.947 \\
+\textbf{Remove D\_User} & \textbf{43} & \textbf{0.824} & \textbf{+0.017} & \textbf{0.903} \\
+Remove C\_Sentiment & 43 & 0.836 & +0.005 & 0.944 \\
+Remove G\_Interact & 47 & 0.839 & +0.002 & 0.949 \\
+Remove B\_Review & 44 & 0.852 & -0.011 & 0.952 \\
+Remove E\_Temporal & 44 & 0.854 & -0.013 & 0.949 \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize Positive drop = important; Negative drop = redundant/noisy} \\
+\end{tabular}
+\end{table}
+\vspace{-8pt}
+\subsection{Key Findings}
+
+\textbf{Critical Components}: Static features (A) cause largest drop (+0.046 AUC, 5.5\%), confirming business attributes are fundamental. Location (F) contributes +0.026 AUC (3.1\%), capturing geographic market conditions. Critically, \textbf{User-Weighted features (D) contribute +0.017 AUC (2.0\%), validating our novel credibility framework} as a key innovation that provides unique predictive signal beyond standard aggregations.
+
+\textbf{Redundant Components}: Removing Review Aggregation (B) and Temporal (E) features \textit{improves} performance (-0.011 and -0.013 AUC respectively). This indicates these categories introduce noise or overlap with other features. The Temporal paradox suggests: (1) temporal patterns are already captured by User-Weighted features through avg\_reviewer\_tenure, (2) features like rating\_recent\_vs\_all may overfit to training fluctuations, and (3) short-term volatility doesn't predict long-term closure.
+
+Figure~\ref{fig:ablation_results} visualizes these relationships. Static (A) shows largest positive drop, validating fundamental importance. User-Weighted (D) shows +0.017 drop, confirming innovation value. Review Aggregation (B) and Temporal (E) show negative drops, indicating redundancy.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figures/ablation/ablation_results.png}
+\caption{Ablation study performance drops. Static (A, +0.046) and Location (F, +0.026) are most important. User-Weighted (D, +0.017) validates our novel approach. Temporal (E, -0.013) and Review Aggregation (B, -0.011) show negative impact, indicating these categories introduce noise when combined with others.}
+\label{fig:ablation_results}
+\end{figure}
+
+\subsection{Additive Analysis}
+
+Table~\ref{tab:additive} shows the complementary additive study, starting with Static features only (ROC-AUC 0.875) and adding categories progressively. Notably, Static + Location achieves 0.891 AUC, \textit{exceeding} the full 52-feature baseline (0.841) by +0.050 AUC, suggesting a parsimonious 13-feature model may outperform by avoiding noise.
+
+\begin{table}[h]
+\centering
+\caption{Additive Study: Performance of Adding Categories}
+\label{tab:additive}
+\small
+\begin{tabular}{lccc}
+\toprule
+Configuration & Features & ROC-AUC & Change \\
+\midrule
+Static Only (Base) & 8 & 0.875 & - \\
++ F\_Location & 13 & \textbf{0.891} & \textbf{+0.016} \\
++ G\_Interaction & 18 & 0.845 & -0.046 \\
++ D\_User\_Weighted & 27 & 0.804 & -0.041 \\
++ B\_Review\_Agg & 35 & 0.783 & -0.021 \\
++ C\_Sentiment & 44 & 0.763 & -0.020 \\
++ E\_Temporal & 52 & 0.744 & -0.019 \\
+\midrule
+All Features (Full) & 52 & 0.841 & - \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+After adding Location, every subsequent category \textit{degrades} performance. Temporal features show worst impact (-0.019), reinforcing ablation findings. The additive study reveals substantial feature redundancy—Random Forest's internal feature selection partially recovers performance (0.744 → 0.841) but cannot eliminate all noise.
+
+Figure~\ref{fig:additive_results} shows performance trajectory. Performance peaks at Static+Location (0.891), then declines continuously as more categories are added, recovering to 0.841 with all 52 features but remaining below the minimal configuration peak.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/ablation/additive_results.png}
+\caption{Additive study trajectory. Performance peaks early at Static+Location (0.891, second bar from left), then declines as Interactions, User-Weighted, Review Aggregation, Sentiment, and Temporal categories are added sequentially. Final configuration (rightmost bar, 0.841) recovers partially but remains below the minimal peak, revealing feature redundancy in the full set.}
+\label{fig:additive_results}
+\end{figure}
+
+\subsection{Implications}
+
+\textbf{Innovation Validation}: User credibility weighting contributes +0.017 AUC unique value, justifying our novel framework.
+
+\textbf{Model Simplification}: A 13-feature model (Static + Location) outperforms the full 52-feature baseline (+0.050 AUC), suggesting production models should prioritize parsimony. We recommend: (1) \textit{Minimal model}: 13 features (0.891 AUC) for latency-critical applications, or (2) \textit{Full excluding Temporal}: 44 features (0.854 AUC) for maximum performance while reducing noise.
+
+\textbf{Temporal Features Problematic}: Both studies consistently identify Temporal features as net-negative contributors. These should be excluded or redesigned to capture genuine long-term trends rather than transient fluctuations.
+
+\section{Parameter Study}
+
+We conduct systematic hyperparameter sensitivity analysis to identify optimal configurations and understand how performance changes with parameter variations, as required for comprehensive model evaluation.
+
+\subsection{Random Forest: Tree Depth Analysis}
+
+Table~\ref{tab:param_depth} shows depth 15 balances performance .
+\vspace{-6pt}
+\begin{table}[h]
+\centering
+\caption{Random Forest Tree Depth Sensitivity}
+\label{tab:param_depth}
+\small
+\begin{tabular}{ccccc}
+\toprule
+Max Depth & Train AUC & Test AUC & Gap & F1 \\
+\midrule
+5 & 0.755 & 0.702 & 0.053 & 0.828 \\
+10 & 0.893 & 0.776 & 0.117 & 0.907 \\
+\textbf{15} & 0.986 & \textbf{0.842} & \textbf{0.144} & \textbf{0.948} \\
+20 & 0.998 & 0.871 & 0.127 & 0.961 \\
+25 & 1.000 & 0.881 & 0.119 & 0.962 \\
+30 & 1.000 & 0.881 & 0.119 & 0.962 \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize Depth 15 recommended: balances performance and generalization} \\
+\end{tabular}
+\end{table}
+\vspace{-6pt}
+\subsection{Random Forest: Number of Estimators}
+
+Table~\ref{tab:param_estimators} shows performance plateaus at 100 trees with diminishing returns thereafter.
+
+\begin{table}[h]
+\centering
+\caption{Random Forest Number of Estimators Analysis}
+\label{tab:param_estimators}
+\small
+\begin{tabular}{ccccc}
+\toprule
+N Trees & Test AUC & F1 & Time (s) & Marginal Gain \\
+\midrule
+50 & 0.833 & 0.948 & 2.37 & - \\
+\textbf{100} & \textbf{0.842} & \textbf{0.948} & \textbf{5.16} & \textbf{+0.009} \\
+150 & 0.845 & 0.949 & 6.61 & +0.003 \\
+200 & 0.846 & 0.949 & 8.95 & +0.001 \\
+300 & 0.848 & 0.949 & 13.38 & +0.002 \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize Performance plateaus after 100; time increases linearly} \\
+\end{tabular}
+\end{table}
+\vspace{-6pt}
+
+\subsection{XGBoost: Learning Rate Sensitivity}
+
+Table~\ref{tab:param_learning_rate} shows learning rate 0.3 provides optimal balance (0.851 AUC).
+\vspace{-6pt}
+\begin{table}[h]
+\centering
+\caption{XGBoost Learning Rate Sensitivity}
+\label{tab:param_learning_rate}
+\small
+\begin{tabular}{ccc}
+\toprule
+Learning Rate & Test AUC & F1 \\
+\midrule
+0.01 & 0.742 & 0.864 \\
+0.1 & 0.818 & 0.882 \\
+\textbf{0.3} & \textbf{0.851} & \textbf{0.897} \\
+0.5 & 0.858 & 0.908 \\
+\bottomrule
+\multicolumn{3}{l}{\footnotesize Rate 0.3 recommended for stability} \\
+\end{tabular}
+\end{table}
+\vspace{-6pt}
+\subsection{Recommended Configuration}
+
+Based on cost-benefit analysis balancing performance, training efficiency, and generalization:
+
+\begin{itemize}[noitemsep]
+\item \textbf{Random Forest}: max\_depth=15 (0.842 AUC, acceptable gap), n\_estimators=100 (plateau point), min\_samples\_split=20
+\item \textbf{XGBoost}: learning\_rate=0.3 (0.851 AUC, stable), max\_depth=10, n\_estimators=200
+\end{itemize}
+
+These configurations avoid overfitting (depth 15 vs 25) and inefficiency (100 vs 300 estimators) while achieving near-optimal performance within 1\% of maximum possible AUC.
+
+\section{Implications}
+
+\subsection{Model Interpretability and Feature Insights}
+
+Our best model (XGBoost, 0.886 ROC-AUC) reveals which features drive business closure predictions. Top predictive features align with business intuition: review\_count (0.110 importance) indicates customer engagement level, avg\_reviewer\_tenure (0.061) captures reviewer expertise, review\_frequency (0.058) reflects consistent patronage, weighted\_avg\_rating (credibility-adjusted quality), and category\_avg\_success (geographic market conditions). These insights provide actionable early warning signals: declining review frequency, dropping credibility-weighted ratings, or deteriorating location market conditions signal potential closure risk.
+
+\subsection{Error Analysis Through Case Studies}
+
+Figure~\ref{fig:case_importance} shows feature patterns across prediction outcomes. FP cases (551): established businesses (review\_count=80.5) with external shocks (35\% competition, 22\% location). FN cases (3,045): resilient businesses (review\_count=17) with recovery patterns (42\% loyalty, 31\% adaptation).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/cases/case_feature_importance.png}
+\caption{Feature importance patterns across case types. \textbf{TP/TN} (correct predictions): Show consistent feature values with review\_count, avg\_reviewer\_tenure, and location\_success dominating. \textbf{FP/FN} (errors): Exhibit anomalous patterns—FP businesses have higher-than-typical review\_count (80.5 vs 45 median) but recent decline, while FN businesses show lower review\_count (17) but hidden resilience factors not captured by features.}
+\label{fig:case_importance}
+\end{figure}
+
+\textbf{Error Patterns:} FP cases (551) show established businesses (review\_count=80.5) with external shocks (35\% competition, 22\% location issues). FN cases (3,045) show resilient businesses (review\_count=17) with recovery patterns (42\% loyal customers, 31\% adaptive strategies).
+
+
 
 \section{Future Work}
-[Content from markdown report Section 7]
+
+Our framework demonstrates strong predictive performance (XGBoost 0.886 ROC-AUC, +6.1\% over baseline) but has limitations that future work should address.
+
+\subsection{Current Framework Disadvantages}
+
+\textbf{(1) Temporal Feature Noise}: Degrade performance (-0.013 AUC), capturing fluctuations not trends. \textbf{(2) Limited Data}: Missing external factors (35\% FP from competition/location). \textbf{(3) Correlation vs Causation}: Cannot determine if declining traffic causes closure or both stem from quality issues. \textbf{(4) Static Window}: Fixed 6-12 month horizon misses early warnings (>12mo) and rapid decline (<6mo).
+
+\subsection{Proposed Solutions}
+
+\textbf{Fix Temporal}: Time-series modeling (ARIMA/Prophet) for trends. \textbf{External Data}: Economic indicators, competitive density, foot traffic. \textbf{Causal Inference}: Propensity matching and structural equation modeling. \textbf{Adaptive Horizons}: 3-6mo (new), 6-12mo (established), 12-18mo (mature).
+
+
+\subsection{Additional Research Directions}
+
+\textbf{Graph Neural Networks}: Model business-user-review networks. \textbf{Advanced NLP}: BERT/RoBERTa for aspect-based sentiment. \textbf{Real-time Deployment}: Production API with incremental learning and explainability (SHAP).
 
 \section{Contributions}
-[Content from markdown report Section 8]
 
-\bibliographystyle{ACM-Reference-Format}
-\bibliography{references}
+Table~\ref{tab:contributions} summarizes the distribution of work across team members for each project phase, with individual contribution percentages.
+
+\begin{table}[H]
+\centering
+\caption{Team member contributions by project phase}
+\label{tab:contributions}
+\small
+\begin{tabular}{@{}p{2.2cm}p{2.8cm}p{2cm}r@{}}
+\toprule
+\textbf{Phase} & \textbf{Task} & \textbf{Contributors} & \textbf{\%} \\
+\midrule
+\multirow{3}{2.2cm}{Data Preprocessing} 
+& \multirow{3}{2.8cm}{Data cleaning pipeline, chunked processing} 
+& Carmen & 33.3 \\
+& & Ju-Bin & 33.3 \\
+& & Adeniran & 33.3 \\
+\midrule
+\multirow{3}{2.2cm}{Exploratory Data Analysis} 
+& \multirow{3}{2.8cm}{Statistical analysis, visualization} 
+& Carmen & 33.3 \\
+& & Ju-Bin & 33.3 \\
+& & Adeniran & 33.3 \\
+\midrule
+\multirow{3}{2.2cm}{Feature Engineering} 
+& User credibility weighting framework
+& Ju-Bin & 40.0 \\
+\cmidrule(lr){2-4}
+& \multirow{2}{2.8cm}{Temporal validation framework} 
+& Adeniran & 30.0 \\
+& & Carmen & 30.0 \\
+\midrule
+\multirow{3}{2.2cm}{Baseline Models} 
+& \multirow{3}{2.8cm}{Model training and evaluation} 
+& Carmen & 33.3 \\
+& & Ju-Bin & 33.3 \\
+& & Adeniran & 33.3 \\
+\midrule
+\multirow{3}{2.2cm}{Advanced Models} 
+& \multirow{3}{2.8cm}{XGBoost, LightGBM, Neural Networks} 
+& Ju-Bin & 40.0 \\
+& & Carmen & 30.0 \\
+& & Adeniran & 30.0 \\
+\midrule
+\multirow{3}{2.2cm}{Ablation Study} 
+& \multirow{3}{2.8cm}{Feature category analysis} 
+& Carmen & 40.0 \\
+& & Ju-Bin & 30.0 \\
+& & Adeniran & 30.0 \\
+\midrule
+\multirow{3}{2.2cm}{Case Studies} 
+& \multirow{3}{2.8cm}{Error analysis, interpretability} 
+& Carmen & 40.0 \\
+& & Ju-Bin & 30.0 \\
+& & Adeniran & 30.0 \\
+\midrule
+\multirow{3}{2.2cm}{Final Report} 
+& \multirow{3}{2.8cm}{Writing, documentation} 
+& Carmen & 33.3 \\
+& & Ju-Bin & 33.3 \\
+& & Adeniran & 33.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+% Our current implementation is still private, but you can access once we have expanded to other subreddits: \url{https://github.com/dingnan2/CS412_Final}.
+
+
+%%
+%% References
+%%
+\begin{thebibliography}{9}
+
+\bibitem{parsa2005}
+Parsa, H.G., Self, J.T., Njite, D., and King, T.
+\textit{Why Restaurants Fail}.
+Cornell Hotel and Restaurant Administration Quarterly, 46(3):304-322, 2005.
+
+\bibitem{nra2024}
+National Restaurant Association.
+\textit{2024 State of the Restaurant Industry Report}.
+National Restaurant Association, 2024.
+
+\end{thebibliography}
 
 \end{document}

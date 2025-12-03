@@ -25,7 +25,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-import logging
 import json
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
@@ -56,17 +55,6 @@ from sklearn.metrics import (
     roc_auc_score, precision_score, recall_score, f1_score,
     confusion_matrix, classification_report
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/temporal_validation.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Configure plotting
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -124,22 +112,12 @@ class TemporalValidator:
         self.results = {}
         self.split_info = {}
         
-        logger.info(f"Initialized TemporalValidator (V2 - Leakage-Free)")
-        logger.info(f"  Features: {features_path}")
-        logger.info(f"  Output: {output_path}")
-        logger.info(f"  Test years: {test_years}")
     
     def load_data(self):
         """Load all required data."""
-        logger.info("="*70)
-        logger.info("LOADING DATA FOR TEMPORAL VALIDATION")
-        logger.info("="*70)
         
         # Load features
-        logger.info(f"Loading features from {self.features_path}...")
         self.features_df = pd.read_csv(self.features_path)
-        logger.info(f"  Loaded {len(self.features_df):,} feature rows")
-        logger.info(f"  Columns: {len(self.features_df.columns)}")
         
         # Check for required columns
         required_cols = ['business_id', '_cutoff_date', '_prediction_year']
@@ -151,15 +129,12 @@ class TemporalValidator:
         self.features_df['_cutoff_date'] = pd.to_datetime(self.features_df['_cutoff_date'])
         
         # Load business data (for ground truth labels)
-        logger.info(f"\nLoading business data from {self.business_path}...")
         self.business_df = pd.read_csv(self.business_path)
-        logger.info(f"  Loaded {len(self.business_df):,} businesses")
         
         # Check is_open column
         if 'is_open' not in self.business_df.columns:
             raise ValueError("Business data must have 'is_open' column for ground truth labels")
         
-        logger.info(f"\n{'='*70}\n")
     
     def generate_labels_leakage_free(self):
         """
@@ -173,16 +148,10 @@ class TemporalValidator:
         "Given historical data up to cutoff_date, predict if business 
         will still be open at the dataset end date."
         """
-        logger.info("="*70)
-        logger.info("GENERATING LABELS (LEAKAGE-FREE)")
-        logger.info("="*70)
         
-        logger.info("Using ground truth labels (is_open) instead of inferred labels")
-        logger.info("This eliminates the circular dependency between features and labels")
         
         # Check if features_df already has is_open column (and remove it to avoid conflict)
         if 'is_open' in self.features_df.columns:
-            logger.info("Removing existing is_open column from features to avoid merge conflict")
             self.features_df = self.features_df.drop(columns=['is_open'])
         
         # Merge features with business ground truth
@@ -200,7 +169,6 @@ class TemporalValidator:
             # Check for renamed columns
             is_open_cols = [c for c in self.tasks_df.columns if 'is_open' in c]
             if is_open_cols:
-                logger.info(f"Found is_open variants: {is_open_cols}, using {is_open_cols[-1]}")
                 self.tasks_df['is_open'] = self.tasks_df[is_open_cols[-1]]
             else:
                 raise ValueError("Could not find is_open column after merge")
@@ -214,9 +182,6 @@ class TemporalValidator:
         initial_count = len(self.tasks_df)
         self.tasks_df = self.tasks_df.dropna(subset=['label'])
         
-        logger.info(f"\n[OK] Generated labels from ground truth")
-        logger.info(f"  Total tasks: {len(self.tasks_df):,}")
-        logger.info(f"  Dropped (no label): {initial_count - len(self.tasks_df):,}")
         
         # Label distribution (handle both int and float labels)
         self.tasks_df['label'] = self.tasks_df['label'].astype(int)
@@ -224,17 +189,10 @@ class TemporalValidator:
         n_open = label_counts.get(1, 0)
         n_closed = label_counts.get(0, 0)
         total = len(self.tasks_df)
-        logger.info(f"\nLabel distribution:")
-        logger.info(f"  Open (1): {n_open:,} ({n_open/total*100:.1f}%)")
-        logger.info(f"  Closed (0): {n_closed:,} ({n_closed/total*100:.1f}%)")
         
-        logger.info(f"\n{'='*70}\n")
     
     def validate_and_filter(self):
         """Validate feature quality and filter invalid rows."""
-        logger.info("="*70)
-        logger.info("VALIDATING AND FILTERING DATA")
-        logger.info("="*70)
         
         initial_count = len(self.tasks_df)
         
@@ -243,7 +201,6 @@ class TemporalValidator:
                        if not c.startswith('_') and c not in 
                        ['business_id', 'label', 'label_confidence', 'label_source', 'is_open']]
         
-        logger.info(f"Feature columns: {len(feature_cols)}")
         
         # Validate feature quality
         features_only = self.tasks_df[feature_cols]
@@ -261,12 +218,7 @@ class TemporalValidator:
             validated_features.reset_index(drop=True)
         ], axis=1)
         
-        logger.info(f"\nFinal dataset after validation:")
-        logger.info(f"  Rows: {len(self.tasks_df):,}")
-        logger.info(f"  Features: {len(feature_cols)}")
-        logger.info(f"  Retention rate: {len(self.tasks_df)/initial_count*100:.1f}%")
         
-        logger.info(f"\n{'='*70}\n")
     
     def create_temporal_holdout_split(self):
         """
@@ -278,20 +230,13 @@ class TemporalValidator:
         
         This is a TRUE temporal prediction task: train on past, test on future.
         """
-        logger.info("="*70)
-        logger.info("CREATING TEMPORAL HOLDOUT SPLIT (V3 - Unified Configuration)")
-        logger.info("="*70)
         
         available_years = sorted(self.tasks_df['_prediction_year'].unique())
-        logger.info(f"Available years in data: {available_years}")
         
         # Use SPLIT_CONFIG from config.py for consistent splits across ALL phases
         train_years = SPLIT_CONFIG['train_years']
         test_years_list = SPLIT_CONFIG['test_years']
         
-        logger.info(f"\nUsing UNIFIED configuration from config.py:")
-        logger.info(f"  Train years: {train_years}")
-        logger.info(f"  Test years: {test_years_list}")
         
         # Create masks
         train_mask = self.tasks_df['_prediction_year'].isin(train_years)
@@ -300,8 +245,6 @@ class TemporalValidator:
         train_indices = np.where(train_mask)[0]
         test_indices = np.where(test_mask)[0]
         
-        logger.info(f"\n  Train samples: {len(train_indices):,}")
-        logger.info(f"  Test samples: {len(test_indices):,}")
         
         # Store split info
         self.split_info = {
@@ -316,10 +259,7 @@ class TemporalValidator:
         y_train = self.tasks_df.iloc[train_indices]['label'].values
         y_test = self.tasks_df.iloc[test_indices]['label'].values
         
-        logger.info(f"\n  Train class distribution: {np.bincount(y_train.astype(int))}")
-        logger.info(f"  Test class distribution: {np.bincount(y_test.astype(int))}")
         
-        logger.info(f"\n{'='*70}\n")
         
         return train_indices, test_indices
     
@@ -327,9 +267,6 @@ class TemporalValidator:
         """
         Train and evaluate models with proper temporal holdout split.
         """
-        logger.info("="*70)
-        logger.info("TRAINING AND EVALUATING MODELS")
-        logger.info("="*70)
         
         # Prepare features and target
         feature_cols = [c for c in self.tasks_df.columns 
@@ -339,8 +276,6 @@ class TemporalValidator:
         X = self.tasks_df[feature_cols].values
         y = self.tasks_df['label'].values
         
-        logger.info(f"Features: {len(feature_cols)}")
-        logger.info(f"Samples: {len(X):,}")
         
         # Create temporal holdout split
         train_indices, test_indices = self.create_temporal_holdout_split()
@@ -378,11 +313,8 @@ class TemporalValidator:
             )
         }
         
-        logger.info("\nTraining models with temporal holdout split...")
-        logger.info("(Train on earlier years, test on later years - NO LEAKAGE)")
         
         for name, model in models.items():
-            logger.info(f"\n{name}:")
             
             # Train
             model.fit(X_train_scaled, y_train)
@@ -404,21 +336,12 @@ class TemporalValidator:
             
             self.results[name] = results
             
-            logger.info(f"  ROC-AUC: {results['roc_auc']:.4f}")
-            logger.info(f"  Precision: {results['precision']:.4f}")
-            logger.info(f"  Recall: {results['recall']:.4f}")
-            logger.info(f"  F1: {results['f1']:.4f}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def generate_visualizations(self):
         """Generate comparison visualizations."""
-        logger.info("="*70)
-        logger.info("GENERATING VISUALIZATIONS")
-        logger.info("="*70)
         
         if not self.results:
-            logger.warning("No results to visualize")
             return
         
         # Model comparison bar chart
@@ -451,104 +374,9 @@ class TemporalValidator:
         plt.tight_layout()
         plt.savefig(self.plots_path / 'model_comparison_temporal.png', dpi=300, bbox_inches='tight')
         plt.close()
-        
-        logger.info(f"[OK] Saved: model_comparison_temporal.png")
-        
-        logger.info(f"\n{'='*70}\n")
     
-    def generate_report(self):
-        """Generate comprehensive markdown report."""
-        logger.info("="*70)
-        logger.info("GENERATING REPORT")
-        logger.info("="*70)
-        
-        report_path = self.output_path / "temporal_validation_report.md"
-        
-        report_lines = []
-        report_lines.append("# Temporal Validation Report (V2 - Leakage-Free)")
-        report_lines.append("")
-        report_lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        report_lines.append("## Methodology Changes (V2)")
-        report_lines.append("")
-        report_lines.append("### Label Generation")
-        report_lines.append("- **V1 (Old)**: Inferred labels from review activity patterns")
-        report_lines.append("- **V2 (New)**: Uses ground truth `is_open` status directly")
-        report_lines.append("- **Benefit**: Eliminates circular dependency between features and labels")
-        report_lines.append("")
-        
-        report_lines.append("### Temporal Split")
-        report_lines.append("- **V1 (Old)**: 80/20 split within each year")
-        report_lines.append("- **V2 (New)**: Temporal holdout (train on past, test on future)")
-        report_lines.append("- **Benefit**: True temporal prediction, no data leakage")
-        report_lines.append("")
-        
-        report_lines.append("---")
-        report_lines.append("")
-        
-        report_lines.append("## Split Configuration")
-        report_lines.append("")
-        if self.split_info:
-            report_lines.append(f"- **Split Type**: {self.split_info.get('split_type', 'N/A')}")
-            report_lines.append(f"- **Train Years**: {self.split_info.get('train_years', [])}")
-            report_lines.append(f"- **Test Years**: {self.split_info.get('test_years', [])}")
-            report_lines.append(f"- **Train Samples**: {self.split_info.get('train_size', 0):,}")
-            report_lines.append(f"- **Test Samples**: {self.split_info.get('test_size', 0):,}")
-        report_lines.append("")
-        
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        
-        if self.tasks_df is not None:
-            report_lines.append(f"- **Total prediction tasks**: {len(self.tasks_df):,}")
-            report_lines.append(f"- **Unique businesses**: {self.tasks_df['business_id'].nunique():,}")
-            report_lines.append(f"- **Prediction years**: {sorted(self.tasks_df['_prediction_year'].unique())}")
-            report_lines.append("")
-        
-        report_lines.append("## Model Performance")
-        report_lines.append("")
-        
-        if self.results:
-            report_lines.append("| Model | ROC-AUC | Precision | Recall | F1 |")
-            report_lines.append("|-------|---------|-----------|--------|-----|")
-            
-            for model_name, metrics in self.results.items():
-                report_lines.append(
-                    f"| {model_name} | {metrics['roc_auc']:.4f} | "
-                    f"{metrics['precision']:.4f} | {metrics['recall']:.4f} | "
-                    f"{metrics['f1']:.4f} |"
-                )
-            
-            report_lines.append("")
-            
-            # Best model
-            best_model = max(self.results.items(), key=lambda x: x[1]['roc_auc'])
-            report_lines.append(f"**Best Model**: {best_model[0]} (ROC-AUC: {best_model[1]['roc_auc']:.4f})")
-            report_lines.append("")
-        
-        report_lines.append("## Expected Performance Range")
-        report_lines.append("")
-        report_lines.append("With leakage-free temporal validation, realistic performance is:")
-        report_lines.append("- **ROC-AUC**: 0.65 - 0.80")
-        report_lines.append("- **F1-Score**: 0.70 - 0.85")
-        report_lines.append("")
-        report_lines.append("If performance exceeds these ranges significantly (e.g., > 0.90),")
-        report_lines.append("there may still be issues with the evaluation methodology.")
-        report_lines.append("")
-        
-        report_lines.append("---")
-        report_lines.append("")
-        report_lines.append("*Report generated by CS 412 Research Project (V2 - Leakage-Free)*")
-        
-        # Write report
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(report_lines))
-        
-        logger.info(f"[OK] Saved report: {report_path}")
-        
+    def save_results_json(self):
+        """Save results to JSON file."""
         # Save JSON results
         results_path = self.output_path / "temporal_validation_results.json"
         with open(results_path, 'w', encoding='utf-8') as f:
@@ -579,9 +407,6 @@ class TemporalValidator:
                     'split_info': convert_to_native(self.split_info)
                 }
             json.dump(json_results, f, indent=2)
-        
-        logger.info(f"[OK] Saved results: {results_path}")
-        logger.info(f"\n{'='*70}\n")
     
     def temporal_cross_validation(self, model, model_name: str, n_splits: int = 5):
         """
@@ -603,17 +428,11 @@ class TemporalValidator:
         """
         from sklearn.base import clone
         
-        logger.info(f"\n{'='*70}")
-        logger.info(f"TEMPORAL CROSS-VALIDATION: {model_name}")
-        logger.info(f"{'='*70}")
-        logger.info(f"Number of splits: {n_splits}")
         
         years = sorted(self.tasks_df['_prediction_year'].unique())
         
         if len(years) < n_splits + 1:
-            logger.warning(f"Not enough years ({len(years)}) for {n_splits} splits")
             n_splits = len(years) - 1
-            logger.info(f"Adjusted to {n_splits} splits")
         
         cv_results = []
         
@@ -622,9 +441,6 @@ class TemporalValidator:
             train_years = years[:-(n_splits-i)]
             test_year = years[-(n_splits-i)]
             
-            logger.info(f"\n--- Fold {i+1}/{n_splits} ---")
-            logger.info(f"  Train years: {list(train_years)}")
-            logger.info(f"  Test year: {test_year}")
             
             # Create masks
             train_mask = self.tasks_df['_prediction_year'].isin(train_years)
@@ -635,8 +451,6 @@ class TemporalValidator:
             X_test_fold = self.X[test_mask]
             y_test_fold = self.y[test_mask]
             
-            logger.info(f"  Train size: {len(X_train_fold):,}")
-            logger.info(f"  Test size: {len(X_test_fold):,}")
             
             # Clone model to avoid fitting the same instance
             model_fold = clone(model)
@@ -665,22 +479,12 @@ class TemporalValidator:
                 'f1': float(f1)
             })
             
-            logger.info(f"  Results: AUC={auc:.4f}, Precision={precision:.4f}, "
-                       f"Recall={recall:.4f}, F1={f1:.4f}")
-        
         # Summary statistics
         aucs = [r['roc_auc'] for r in cv_results]
         precisions = [r['precision'] for r in cv_results]
         recalls = [r['recall'] for r in cv_results]
         f1s = [r['f1'] for r in cv_results]
         
-        logger.info(f"\n{'='*70}")
-        logger.info("TEMPORAL CV SUMMARY")
-        logger.info(f"{'='*70}")
-        logger.info(f"AUC:       {np.mean(aucs):.4f} ± {np.std(aucs):.4f}")
-        logger.info(f"Precision: {np.mean(precisions):.4f} ± {np.std(precisions):.4f}")
-        logger.info(f"Recall:    {np.mean(recalls):.4f} ± {np.std(recalls):.4f}")
-        logger.info(f"F1:        {np.mean(f1s):.4f} ± {np.std(f1s):.4f}")
         
         # Save results
         cv_file = self.output_path / f'temporal_cv_{model_name}.json'
@@ -701,7 +505,6 @@ class TemporalValidator:
                 }
             }, f, indent=2)
         
-        logger.info(f"\n[OK] Saved: {cv_file}")
         
         return cv_results
     
@@ -712,14 +515,6 @@ class TemporalValidator:
         Args:
             prediction_window_months: Not used in V2 (kept for API compatibility)
         """
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - TEMPORAL VALIDATION (V2)")
-        logger.info("="*70)
-        logger.info("")
-        logger.info("This version uses LEAKAGE-FREE methodology:")
-        logger.info("  1. Ground truth labels (is_open), not inferred")
-        logger.info("  2. Temporal holdout split, not per-year 80/20")
-        logger.info("")
         
         # Step 1: Load data
         self.load_data()
@@ -731,44 +526,33 @@ class TemporalValidator:
         self.validate_and_filter()
         
         # Step 3.5: Save labeled temporal features for downstream models
-        try:
-            labeled_path = self.features_path.with_name(
-                f"{self.features_path.stem}_labeled_{prediction_window_months}m.csv"
-            )
-            logger.info(f"Saving labeled temporal features to {labeled_path} ...")
-            self.tasks_df.to_csv(labeled_path, index=False)
-            logger.info("[OK] Labeled temporal features saved")
-        except Exception as e:
-            logger.warning(f"Could not save labeled temporal features: {e}")
+        
+        labeled_path = self.features_path.with_name(
+            f"{self.features_path.stem}_labeled_{prediction_window_months}m.csv"
+        )
+        self.tasks_df.to_csv(labeled_path, index=False)
+        
         
         # Step 4: Train and evaluate
         self.train_and_evaluate()
         
         # Step 5: Temporal Cross-Validation (NEW - for robust evaluation)
-        try:
-            from sklearn.ensemble import RandomForestClassifier
-            rf_model = RandomForestClassifier(
-                n_estimators=100,
-                max_depth=15,
-                class_weight='balanced',
-                random_state=42
-            )
-            self.temporal_cross_validation(rf_model, 'RandomForest_CV', n_splits=4)
-            logger.info("[OK] Temporal cross-validation complete")
-        except Exception as e:
-            logger.warning(f"Temporal CV skipped: {e}")
         
+        from sklearn.ensemble import RandomForestClassifier
+        rf_model = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=15,
+            class_weight='balanced',
+            random_state=42
+        )
+        self.temporal_cross_validation(rf_model, 'RandomForest_CV', n_splits=4)
+   
         # Step 6: Generate visualizations
         self.generate_visualizations()
         
-        # Step 7: Generate report
-        self.generate_report()
+        # Step 7: Save results JSON
+        self.save_results_json()
         
-        logger.info("\n" + "="*70)
-        logger.info("TEMPORAL VALIDATION COMPLETE (V2 - LEAKAGE-FREE)!")
-        logger.info("="*70)
-        logger.info(f"\nOutputs saved to: {self.output_path}")
-        logger.info("")
 
 
 def main():

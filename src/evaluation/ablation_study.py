@@ -27,7 +27,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-import logging
 import json
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -51,17 +50,6 @@ except ImportError:
     }
     RANDOM_STATE = 42
     RF_ABLATION_CONFIG = {'n_estimators': 100, 'max_depth': 15, 'class_weight': 'balanced'}
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/ablation_study.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Configure plotting
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -153,19 +141,12 @@ class AblationStudy:
         self.ablation_results = {}
         self.additive_results = {}
         
-        logger.info(f"Initialized AblationStudy")
-        logger.info(f"  Data: {data_path}")
-        logger.info(f"  Feature categories: {len(self.feature_categories)}")
     
     def load_and_prepare_data(self):
         """Load data and prepare train/test split."""
-        logger.info("="*70)
-        logger.info("LOADING DATA")
-        logger.info("="*70)
         
         # Load data
         self.df = pd.read_csv(self.data_path)
-        logger.info(f"Loaded: {self.df.shape}")
         
         # Get all feature columns that exist in the data
         all_features = []
@@ -175,9 +156,7 @@ class AblationStudy:
             
             if len(existing) < len(features):
                 missing = set(features) - set(existing)
-                logger.warning(f"{category}: Missing {len(missing)} features: {missing}")
         
-        logger.info(f"Total available features: {len(all_features)}")
         
         # Extract features and target
         X = self.df[all_features].values
@@ -191,15 +170,11 @@ class AblationStudy:
         
         # Temporal HOLDOUT split (V3 - Unified Configuration)
         if '_prediction_year' in self.df.columns:
-            logger.info("Using TEMPORAL HOLDOUT split (V3 - Unified Configuration)...")
-            logger.info("Using SPLIT_CONFIG from config.py for consistency with baseline/advanced models")
             
             # Use SPLIT_CONFIG from config.py - SAME as baseline_models.py and advanced_models.py
             train_years = SPLIT_CONFIG['train_years']
             test_years = SPLIT_CONFIG['test_years']
             
-            logger.info(f"Train years (from config): {train_years}")
-            logger.info(f"Test years (from config): {test_years}")
             
             train_mask = self.df['_prediction_year'].isin(train_years)
             test_mask = self.df['_prediction_year'].isin(test_years)
@@ -212,7 +187,6 @@ class AblationStudy:
             y_train = y[train_indices]
             y_test = y[test_indices]
         else:
-            logger.info("Using random split (no temporal metadata)...")
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=self.random_state, stratify=y
             )
@@ -224,8 +198,6 @@ class AblationStudy:
         self.y_train = y_train
         self.y_test = y_test
         
-        logger.info(f"Train: {len(self.X_train):,}, Test: {len(self.X_test):,}")
-        logger.info(f"\n{'='*70}\n")
     
     def get_feature_indices(self, feature_names: List[str]) -> List[int]:
         """Get indices of features in the full feature list."""
@@ -255,7 +227,6 @@ class AblationStudy:
         indices = self.get_feature_indices(feature_names)
         
         if len(indices) == 0:
-            logger.warning(f"{experiment_name}: No valid features found")
             return None
         
         # Select features
@@ -301,9 +272,6 @@ class AblationStudy:
         This shows the importance of each category by measuring
         performance drop when it's removed.
         """
-        logger.info("="*70)
-        logger.info("ABLATION EXPERIMENTS (Remove One Category)")
-        logger.info("="*70)
         
         # Baseline: All features
         all_features = []
@@ -313,10 +281,6 @@ class AblationStudy:
         baseline = self.train_with_features(all_features, "Baseline_All_Features")
         self.ablation_results['Baseline'] = baseline
         
-        logger.info(f"\nBaseline (All Features):")
-        logger.info(f"  Features: {baseline['n_features']}")
-        logger.info(f"  ROC-AUC: {baseline['roc_auc']:.4f}")
-        logger.info(f"  F1: {baseline['f1']:.4f}")
         
         # Remove each category
         for category_name, category_features in self.feature_categories.items():
@@ -339,11 +303,7 @@ class AblationStudy:
                 
                 self.ablation_results[f"Remove_{category_name}"] = result
                 
-                logger.info(f"\n{category_name} (Removed):")
-                logger.info(f"  ROC-AUC: {result['roc_auc']:.4f} (drop: {result['auc_drop']:.4f})")
-                logger.info(f"  F1: {result['f1']:.4f} (drop: {result['f1_drop']:.4f})")
         
-        logger.info(f"\n{'='*70}\n")
     
     def run_additive_experiments(self):
         """
@@ -352,9 +312,6 @@ class AblationStudy:
         This shows the marginal contribution of each category
         when added to an empty or minimal feature set.
         """
-        logger.info("="*70)
-        logger.info("ADDITIVE EXPERIMENTS (Add One Category)")
-        logger.info("="*70)
         
         # Start with just static features (most basic)
         base_features = [f for f in self.feature_categories['A_Static'] if f in self.df.columns]
@@ -362,9 +319,6 @@ class AblationStudy:
         baseline = self.train_with_features(base_features, "Base_Static_Only")
         self.additive_results['Base_Static'] = baseline
         
-        logger.info(f"\nBase (Static Features Only):")
-        logger.info(f"  ROC-AUC: {baseline['roc_auc']:.4f}")
-        logger.info(f"  F1: {baseline['f1']:.4f}")
         
         # Add each category to base
         for category_name, category_features in self.feature_categories.items():
@@ -387,11 +341,7 @@ class AblationStudy:
                 
                 self.additive_results[f"Add_{category_name}"] = result
                 
-                logger.info(f"\n{category_name} (Added to Base):")
-                logger.info(f"  ROC-AUC: {result['roc_auc']:.4f} (gain: {result['auc_gain']:.4f})")
-                logger.info(f"  F1: {result['f1']:.4f} (gain: {result['f1_gain']:.4f})")
         
-        logger.info(f"\n{'='*70}\n")
     
     def evaluate_user_credibility_impact(self):
         """
@@ -401,9 +351,6 @@ class AblationStudy:
         1. With user-weighted features (Category D)
         2. Without user-weighted features
         """
-        logger.info("="*70)
-        logger.info("USER CREDIBILITY WEIGHTING IMPACT")
-        logger.info("="*70)
         
         # All features
         all_features = []
@@ -420,25 +367,12 @@ class AblationStudy:
         
         without_cred = self.train_with_features(without_cred_features, "Without_Credibility")
         
-        logger.info(f"\nWith User Credibility:")
-        logger.info(f"  ROC-AUC: {with_cred['roc_auc']:.4f}")
-        logger.info(f"  F1: {with_cred['f1']:.4f}")
         
-        logger.info(f"\nWithout User Credibility:")
-        logger.info(f"  ROC-AUC: {without_cred['roc_auc']:.4f}")
-        logger.info(f"  F1: {without_cred['f1']:.4f}")
         
-        logger.info(f"\nCredibility Impact:")
-        logger.info(f"  ROC-AUC improvement: {with_cred['roc_auc'] - without_cred['roc_auc']:.4f}")
-        logger.info(f"  F1 improvement: {with_cred['f1'] - without_cred['f1']:.4f}")
         
-        logger.info(f"\n{'='*70}\n")
     
     def generate_visualizations(self):
         """Generate ablation study visualizations."""
-        logger.info("="*70)
-        logger.info("GENERATING VISUALIZATIONS")
-        logger.info("="*70)
         
         # Ablation results (performance drop when category removed)
         if len(self.ablation_results) > 1:
@@ -473,7 +407,6 @@ class AblationStudy:
             plt.savefig(self.plots_path / 'ablation_results.png', dpi=300, bbox_inches='tight')
             plt.close()
             
-            logger.info("[OK] Saved: ablation_results.png")
         
         # Additive results (performance gain when category added)
         if len(self.additive_results) > 1:
@@ -498,34 +431,17 @@ class AblationStudy:
             plt.savefig(self.plots_path / 'additive_results.png', dpi=300, bbox_inches='tight')
             plt.close()
             
-            logger.info("[OK] Saved: additive_results.png")
         
-        logger.info(f"\n{'='*70}\n")
     
     def generate_report(self):
         """Generate comprehensive ablation study report."""
-        logger.info("="*70)
-        logger.info("GENERATING REPORT")
-        logger.info("="*70)
         
         report_path = self.output_path / "ablation_study_report.md"
         
         report_lines = []
         report_lines.append("# Ablation Study Report")
         report_lines.append("")
-        report_lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append("")
-        report_lines.append("---")
-        report_lines.append("")
-        
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        report_lines.append("This report presents systematic evaluation of feature category contributions.")
-        report_lines.append("Two complementary approaches are used:")
-        report_lines.append("")
-        report_lines.append("1. **Ablation**: Remove each category and measure performance drop")
-        report_lines.append("2. **Additive**: Add each category and measure performance gain")
-        report_lines.append("")
+
         
         # Ablation results
         if self.ablation_results:
@@ -629,17 +545,7 @@ class AblationStudy:
                 report_lines.append("#### Temporal Feature Paradox")
                 report_lines.append("")
                 report_lines.append(f"Removing E_Temporal features **improved** performance (AUC change: {temporal_drop:+.4f}).")
-                report_lines.append("This counter-intuitive result suggests:")
-                report_lines.append("")
-                report_lines.append("1. **Feature Redundancy**: Temporal patterns already captured by User-Weighted (D)")
-                report_lines.append("   features through `avg_reviewer_tenure` and `review_diversity`")
-                report_lines.append("")
-                report_lines.append("2. **Noise Introduction**: Features like `rating_recent_vs_all` may capture")
-                report_lines.append("   transient fluctuations rather than meaningful trends")
-                report_lines.append("")
-                report_lines.append("3. **Overfitting Risk**: 8 temporal features add complexity without")
-                report_lines.append("   proportional signal, leading to overfitting on training data")
-                report_lines.append("")
+
             
             # Analyze additive vs ablation discrepancy
             if self.additive_results:
@@ -655,31 +561,14 @@ class AblationStudy:
                     report_lines.append("User-Weighted (D) shows different behavior in ablation vs additive analysis:")
                     report_lines.append(f"- **Ablation**: Removing D hurts performance (drop: {ablation_drop:+.4f})")
                     report_lines.append(f"- **Additive**: Adding D to Static hurts performance (gain: {additive_gain:+.4f})")
-                    report_lines.append("")
-                    report_lines.append("**Explanation**: This demonstrates **feature interaction effects**:")
-                    report_lines.append("- When ALL features present: D provides unique signal not captured by others")
-                    report_lines.append("- When adding to Static only: D overlaps with Static features, introducing noise")
-                    report_lines.append("- D works synergistically with Location (F) features, not as standalone")
-                    report_lines.append("")
+
         
-        report_lines.append("### Recommendations")
-        report_lines.append("")
-        report_lines.append("Based on ablation analysis:")
-        report_lines.append("")
-        report_lines.append("1. **Keep**: Static (A), User-Weighted (D), Location (F) - provide independent signal")
-        report_lines.append("2. **Review**: Temporal (E) - consider removing or simplifying to reduce overfitting")
-        report_lines.append("3. **Simplify**: Review Aggregation (B) - redundant with other categories")
-        report_lines.append("")
         
-        report_lines.append("---")
-        report_lines.append("")
-        report_lines.append("*Report generated by CS 412 Research Project ablation study pipeline*")
         
         # Write report
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"[OK] Saved report: {report_path}")
         
         # Save results JSON
         results = {
@@ -691,8 +580,6 @@ class AblationStudy:
         with open(results_file, 'w') as f:
             json.dump(results, f, indent=2)
         
-        logger.info(f"[OK] Saved results: {results_file}")
-        logger.info(f"\n{'='*70}\n")
     
     def analyze_multicollinearity(self):
         """
@@ -707,12 +594,8 @@ class AblationStudy:
         try:
             from statsmodels.stats.outliers_influence import variance_inflation_factor
         except ImportError:
-            logger.warning("statsmodels not available. Install it for VIF analysis.")
             return None
         
-        logger.info(f"\n{'='*70}")
-        logger.info("MULTICOLLINEARITY ANALYSIS (VIF)")
-        logger.info(f"{'='*70}")
         
         # Select only numeric features (exclude metadata columns)
         feature_cols = [col for col in self.df.columns 
@@ -728,7 +611,6 @@ class AblationStudy:
         # Fill any NaN values
         numeric_features = numeric_features.fillna(numeric_features.median())
         
-        logger.info(f"Analyzing {len(numeric_features.columns)} numeric features")
         
         # Compute VIF for each feature
         vif_data = []
@@ -737,7 +619,6 @@ class AblationStudy:
                 vif = variance_inflation_factor(numeric_features.values, i)
                 vif_data.append({'feature': col, 'VIF': vif})
             except Exception as e:
-                logger.warning(f"Could not compute VIF for {col}: {e}")
                 vif_data.append({'feature': col, 'VIF': np.nan})
         
         vif_df = pd.DataFrame(vif_data)
@@ -752,20 +633,10 @@ class AblationStudy:
         high_vif = vif_df[vif_df['VIF'] > 10].dropna()
         moderate_vif = vif_df[(vif_df['VIF'] > 5) & (vif_df['VIF'] <= 10)].dropna()
         
-        logger.info(f"\nHigh VIF features (> 10): {len(high_vif)}")
-        if len(high_vif) > 0:
-            for _, row in high_vif.head(15).iterrows():
-                logger.info(f"  {row['feature']}: {row['VIF']:.2f}")
-        
-        logger.info(f"\nModerate VIF features (5-10): {len(moderate_vif)}")
-        if len(moderate_vif) > 0:
-            for _, row in moderate_vif.iterrows():
-                logger.info(f"  {row['feature']}: {row['VIF']:.2f}")
         
         # Save
         vif_file = self.output_path / 'vif_analysis.csv'
         vif_df.to_csv(vif_file, index=False)
-        logger.info(f"\n[OK] Saved: {vif_file}")
         
         return vif_df
     
@@ -779,22 +650,16 @@ class AblationStudy:
         Returns:
             Correlation matrix and high correlation pairs
         """
-        logger.info(f"\n{'='*70}")
-        logger.info(f"CORRELATION ANALYSIS: {category}")
-        logger.info(f"{'='*70}")
         
         if category not in self.feature_categories:
-            logger.error(f"Category '{category}' not found")
             return None, []
         
         category_features = self.feature_categories[category]
         available_features = [f for f in category_features if f in self.df.columns]
         
         if len(available_features) == 0:
-            logger.warning(f"No features found for category {category}")
             return None, []
         
-        logger.info(f"Analyzing {len(available_features)} features")
         
         # Compute correlation matrix
         corr_matrix = self.df[available_features].corr()
@@ -813,22 +678,16 @@ class AblationStudy:
         
         # Sort by absolute correlation
         high_corr_pairs.sort(key=lambda x: abs(x['correlation']), reverse=True)
-        
-        logger.info(f"\nHigh correlations (|r| > 0.7): {len(high_corr_pairs)}")
-        for pair in high_corr_pairs:
-            logger.info(f"  {pair['feature1']} ↔ {pair['feature2']}: r = {pair['correlation']:.3f}")
-        
+
         # Save correlation matrix
         corr_file = self.output_path / f'correlation_matrix_{category}.csv'
         corr_matrix.to_csv(corr_file)
-        logger.info(f"\n[OK] Saved: {corr_file}")
         
         # Save high correlation pairs
         if len(high_corr_pairs) > 0:
             pairs_df = pd.DataFrame(high_corr_pairs)
             pairs_file = self.output_path / f'high_correlations_{category}.csv'
             pairs_df.to_csv(pairs_file, index=False)
-            logger.info(f"[OK] Saved: {pairs_file}")
         
         return corr_matrix, high_corr_pairs
     
@@ -841,9 +700,6 @@ class AblationStudy:
         2. VIF of temporal features
         3. Redundancy with user-weighted features
         """
-        logger.info(f"\n{'='*70}")
-        logger.info("TEMPORAL FEATURE PARADOX ANALYSIS")
-        logger.info(f"{'='*70}")
         
         temporal_features = self.feature_categories.get('E_Temporal', [])
         user_weighted_features = self.feature_categories.get('D_User_Weighted', [])
@@ -854,12 +710,8 @@ class AblationStudy:
         user_avail = [f for f in user_weighted_features if f in self.df.columns]
         review_avail = [f for f in review_agg_features if f in self.df.columns]
         
-        logger.info(f"\nTemporal features: {len(temporal_avail)}")
-        logger.info(f"User-weighted features: {len(user_avail)}")
-        logger.info(f"Review aggregation features: {len(review_avail)}")
         
         # Cross-category correlations
-        logger.info("\n--- Cross-Category Correlations ---")
         
         # Temporal vs User-Weighted
         if len(temporal_avail) > 0 and len(user_avail) > 0:
@@ -878,10 +730,7 @@ class AblationStudy:
             
             high_cross_corr.sort(key=lambda x: abs(x['correlation']), reverse=True)
             
-            logger.info(f"\nTemporal ↔ User-Weighted correlations (|r| > 0.5): {len(high_cross_corr)}")
-            for pair in high_cross_corr[:10]:
-                logger.info(f"  {pair['temporal']} ↔ {pair['user_weighted']}: r = {pair['correlation']:.3f}")
-        
+           
         # Temporal vs Review Aggregation
         if len(temporal_avail) > 0 and len(review_avail) > 0:
             cross_corr = self.df[temporal_avail + review_avail].corr()
@@ -898,23 +747,13 @@ class AblationStudy:
                         })
             
             high_cross_corr.sort(key=lambda x: abs(x['correlation']), reverse=True)
-            
-            logger.info(f"\nTemporal ↔ Review Aggregation correlations (|r| > 0.5): {len(high_cross_corr)}")
-            for pair in high_cross_corr[:10]:
-                logger.info(f"  {pair['temporal']} ↔ {pair['review_agg']}: r = {pair['correlation']:.3f}")
+
         
-        logger.info("\n--- Conclusion ---")
-        logger.info("If temporal features are highly correlated with other categories,")
-        logger.info("they may introduce multicollinearity and noise rather than unique signal.")
         
         return True
     
     def run_pipeline(self):
         """Execute complete ablation study pipeline."""
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - ABLATION STUDY")
-        logger.info("="*70)
-        logger.info("")
         
         # Step 1: Load data
         self.load_and_prepare_data()
@@ -941,11 +780,6 @@ class AblationStudy:
         # Step 8: Generate report
         self.generate_report()
         
-        logger.info("\n" + "="*70)
-        logger.info("ABLATION STUDY COMPLETE!")
-        logger.info("="*70)
-        logger.info(f"\nOutputs saved to: {self.output_path}")
-        logger.info("")
 
 
 def main():

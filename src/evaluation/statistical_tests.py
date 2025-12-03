@@ -15,13 +15,10 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score
 from sklearn.utils import resample
 from scipy import stats
-import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
 import json
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class StatisticalTester:
@@ -62,12 +59,6 @@ class StatisticalTester:
         Returns:
             Dict with mean_diff, ci_low, ci_high, p_value, is_significant
         """
-        logger.info(f"\n{'='*70}")
-        logger.info("BOOTSTRAP CONFIDENCE INTERVAL TEST")
-        logger.info(f"{'='*70}")
-        logger.info(f"Metric: {metric}")
-        logger.info(f"Iterations: {n_iterations}")
-        logger.info(f"Confidence level: {confidence_level*100}%")
         
         # Determine metric function
         if metric == 'roc_auc':
@@ -117,24 +108,12 @@ class StatisticalTester:
         ci_low = np.percentile(diffs, alpha/2 * 100)
         ci_high = np.percentile(diffs, (1 - alpha/2) * 100)
         
-        # P-value (one-sided test: Is Model 2 > Model 1?)
+        # P-value (one-sided test: Model 2 > Model 1)
         p_value = np.mean(diffs <= 0)
+
+        is_significant = (ci_low > 0)  
         
-        # Is significant?
-        is_significant = (ci_low > 0)  # If lower bound > 0, improvement is significant
-        
-        # Summary
-        logger.info(f"\nBootstrap Results:")
-        logger.info(f"  Mean difference: {mean_diff:.4f} ± {std_diff:.4f}")
-        logger.info(f"  {confidence_level*100}% CI: [{ci_low:.4f}, {ci_high:.4f}]")
-        logger.info(f"  P-value (one-sided): {p_value:.4f}")
-        logger.info(f"  Significant at α={alpha:.2f}: {is_significant}")
-        
-        if is_significant:
-            logger.info(f"\n[OK] Model 2 is SIGNIFICANTLY better than Model 1")
-        else:
-            logger.info(f"\n[WARN] Improvement is NOT statistically significant")
-        
+
         return {
             'mean_diff': mean_diff,
             'std_diff': std_diff,
@@ -167,11 +146,6 @@ class StatisticalTester:
         Returns:
             DataFrame with comparison results
         """
-        logger.info(f"\n{'='*70}")
-        logger.info("MULTIPLE MODEL COMPARISON")
-        logger.info(f"{'='*70}")
-        logger.info(f"Baseline: {baseline_model}")
-        logger.info(f"Comparing {len(predictions)-1} models")
         
         if baseline_model not in predictions:
             raise ValueError(f"Baseline model '{baseline_model}' not found")
@@ -224,10 +198,6 @@ class StatisticalTester:
         results_df = pd.DataFrame(results)
         results_df = results_df.sort_values('mean_diff', ascending=False)
         
-        logger.info(f"\n{'='*70}")
-        logger.info("COMPARISON RESULTS")
-        logger.info(f"{'='*70}")
-        logger.info(results_df.to_string(index=False))
         
         return results_df
     
@@ -250,30 +220,21 @@ class StatisticalTester:
         Returns:
             Dict with test statistic and p-value
         """
-        logger.info(f"\n{'='*70}")
-        logger.info("McNEMAR'S TEST")
-        logger.info(f"{'='*70}")
         
         # Convert probabilities to binary predictions
         y_pred1 = (pred1 > threshold).astype(int)
         y_pred2 = (pred2 > threshold).astype(int)
         
-        # Create contingency table
-        # Model 1 correct, Model 2 wrong: n01
-        # Model 1 wrong, Model 2 correct: n10
+        # contingency table
         correct1 = (y_pred1 == y_true)
         correct2 = (y_pred2 == y_true)
         
         n01 = np.sum(correct1 & ~correct2)
         n10 = np.sum(~correct1 & correct2)
         
-        logger.info(f"\nContingency Table:")
-        logger.info(f"  Model 1 correct, Model 2 wrong: {n01}")
-        logger.info(f"  Model 1 wrong, Model 2 correct: {n10}")
         
         # McNemar's test statistic (with continuity correction)
         if (n01 + n10) == 0:
-            logger.warning("Cannot perform McNemar's test: no disagreements")
             return {'statistic': 0.0, 'p_value': 1.0, 'is_significant': False}
         
         statistic = ((abs(n01 - n10) - 1) ** 2) / (n01 + n10)
@@ -281,19 +242,7 @@ class StatisticalTester:
         
         is_significant = (p_value < 0.05)
         
-        logger.info(f"\nMcNemar's Test Results:")
-        logger.info(f"  Test statistic: {statistic:.4f}")
-        logger.info(f"  P-value: {p_value:.4f}")
-        logger.info(f"  Significant at α=0.05: {is_significant}")
-        
-        if is_significant:
-            if n10 > n01:
-                logger.info(f"\n[OK] Model 2 is significantly better")
-            else:
-                logger.info(f"\n[FAIL] Model 1 is significantly better")
-        else:
-            logger.info(f"\n[WARN] No significant difference")
-        
+
         return {
             'statistic': statistic,
             'p_value': p_value,
@@ -310,9 +259,6 @@ def main():
     import sys
     sys.path.append(str(Path(__file__).parent.parent))
     
-    logger.info("="*70)
-    logger.info("STATISTICAL SIGNIFICANCE TESTING")
-    logger.info("="*70)
     
     # Load predictions (example paths)
     # You'll need to save predictions from baseline_models.py and advanced_models.py
@@ -349,10 +295,6 @@ def main():
     #     metric='roc_auc'
     # )
     
-    logger.info("\nTo use this module:")
-    logger.info("1. Save model predictions in baseline_models.py and advanced_models.py")
-    logger.info("2. Import StatisticalTester and run tests")
-    logger.info("3. Add results to final report")
 
 
 if __name__ == "__main__":

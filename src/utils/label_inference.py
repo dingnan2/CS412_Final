@@ -14,9 +14,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from typing import Dict, Tuple, Optional
-import logging
 
-logger = logging.getLogger(__name__)
 
 
 def estimate_closure_date(business_id: str,
@@ -52,7 +50,6 @@ def estimate_closure_date(business_id: str,
     business_reviews = reviews_df[reviews_df['business_id'] == business_id]
     
     if len(business_reviews) == 0:
-        logger.warning(f"No reviews found for business {business_id}")
         return None
     
     last_review_date = business_reviews['date'].max()
@@ -99,7 +96,6 @@ def infer_business_status(business_id: str,
     business_info = business_df[business_df['business_id'] == business_id]
     
     if len(business_info) == 0:
-        logger.warning(f"Business {business_id} not found in business_df")
         return 0, 0.0
     
     business_info = business_info.iloc[0]
@@ -109,7 +105,6 @@ def infer_business_status(business_id: str,
     business_reviews = reviews_df[reviews_df['business_id'] == business_id]
     
     if len(business_reviews) == 0:
-        logger.warning(f"No reviews for business {business_id}")
         return 0, 0.0
     
     first_review = business_reviews['date'].min()
@@ -145,7 +140,6 @@ def infer_business_status(business_id: str,
         
         if estimated_closure is None:
             # Shouldn't happen, but handle gracefully
-            logger.warning(f"Could not estimate closure for {business_id}")
             return 0, 0.5
         
         # Compare target_date with estimated closure
@@ -274,7 +268,6 @@ def batch_infer_labels(tasks_df: pd.DataFrame,
         - label: 0 or 1 (business status at target_date)
         - label_confidence: 0.0 to 1.0
     """
-    logger.info(f"Inferring labels for {len(tasks_df)} tasks...")
     
     labels = []
     confidences = []
@@ -291,18 +284,9 @@ def batch_infer_labels(tasks_df: pd.DataFrame,
         labels.append(status)
         confidences.append(confidence)
         
-        if (idx + 1) % 1000 == 0:
-            logger.info(f"  Processed {idx + 1}/{len(tasks_df)} tasks")
-    
+        
     tasks_df['label'] = labels
     tasks_df['label_confidence'] = confidences
-    
-    # Log statistics
-    logger.info(f"\nLabel inference complete:")
-    logger.info(f"  Open (1): {sum(labels)} ({sum(labels)/len(labels)*100:.1f}%)")
-    logger.info(f"  Closed (0): {len(labels) - sum(labels)} ({(len(labels)-sum(labels))/len(labels)*100:.1f}%)")
-    logger.info(f"  Avg confidence: {np.mean(confidences):.3f}")
-    logger.info(f"  Min confidence: {np.min(confidences):.3f}")
-    logger.info(f"  Max confidence: {np.max(confidences):.3f}")
+
     
     return tasks_df

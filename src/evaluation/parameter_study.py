@@ -24,7 +24,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-import logging
 import json
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
@@ -69,17 +68,6 @@ try:
     LIGHTGBM_AVAILABLE = True
 except ImportError:
     LIGHTGBM_AVAILABLE = False
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/parameter_study.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Configure plotting
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -135,28 +123,17 @@ class ParameterStudy:
             'min_samples_split': {},
             'regularization': {}
         }
-        
-        logger.info(f"Initialized ParameterStudy")
-        logger.info(f"  Data: {data_path}")
-        logger.info(f"  Output: {output_path}")
     
     def load_and_prepare_data(self):
         """Load data and prepare train/test split."""
-        logger.info("="*70)
-        logger.info("LOADING DATA FOR PARAMETER STUDY")
-        logger.info("="*70)
-        
         # Load data
         self.df = pd.read_csv(self.data_path)
-        logger.info(f"Loaded: {self.df.shape}")
         
         # Identify metadata and feature columns
         metadata_cols = [c for c in self.df.columns if c.startswith('_')]
         metadata_cols.extend(['business_id', 'label', 'label_confidence', 'label_source', 'is_open'])
         
         self.feature_names = [c for c in self.df.columns if c not in metadata_cols]
-        
-        logger.info(f"Features: {len(self.feature_names)}")
         
         # Extract features and target
         X = self.df[self.feature_names].values
@@ -173,15 +150,9 @@ class ParameterStudy:
         
         # Temporal HOLDOUT split (V3 - Unified Configuration)
         if '_prediction_year' in self.df.columns:
-            logger.info("Using TEMPORAL HOLDOUT split (V3 - Unified Configuration)...")
-            logger.info("Using SPLIT_CONFIG from config.py for consistency with baseline/advanced models")
-            
             # Use SPLIT_CONFIG from config.py - SAME as baseline_models.py and advanced_models.py
             train_years = SPLIT_CONFIG['train_years']
             test_years = SPLIT_CONFIG['test_years']
-            
-            logger.info(f"Train years (from config): {train_years}")
-            logger.info(f"Test years (from config): {test_years}")
             
             train_mask = self.df['_prediction_year'].isin(train_years)
             test_mask = self.df['_prediction_year'].isin(test_years)
@@ -194,7 +165,6 @@ class ParameterStudy:
             y_train = y[train_indices]
             y_test = y[test_indices]
         else:
-            logger.info("Using random split (no temporal metadata)...")
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=self.random_state, stratify=y
             )
@@ -205,9 +175,6 @@ class ParameterStudy:
         self.X_test = self.scaler.transform(X_test)
         self.y_train = y_train
         self.y_test = y_test
-        
-        logger.info(f"Train: {len(self.X_train):,}, Test: {len(self.X_test):,}")
-        logger.info(f"\n{'='*70}\n")
     
     def study_tree_depth(self, depths: List[int] = None):
         """
@@ -216,10 +183,6 @@ class ParameterStudy:
         Args:
             depths: List of max_depth values to test
         """
-        logger.info("="*70)
-        logger.info("PARAMETER STUDY: Tree Depth")
-        logger.info("="*70)
-        
         if depths is None:
             depths = [3, 5, 7, 10, 15, 20, 25, 30, None]  # None = unlimited
         
@@ -227,7 +190,6 @@ class ParameterStudy:
         
         for depth in depths:
             depth_str = str(depth) if depth else 'None'
-            logger.info(f"\nTesting max_depth = {depth_str}")
             
             model = RandomForestClassifier(
                 n_estimators=100,
@@ -254,17 +216,12 @@ class ParameterStudy:
             results['train_auc'].append(train_auc)
             results['test_auc'].append(test_auc)
             results['f1'].append(f1)
-            
-            logger.info(f"  Train AUC: {train_auc:.4f}, Test AUC: {test_auc:.4f}, F1: {f1:.4f}")
         
         self.results['tree_depth'] = results
         
         # Find optimal depth
         best_idx = np.argmax(results['test_auc'])
         best_depth = results['depths'][best_idx]
-        logger.info(f"\n[OK] Optimal max_depth: {best_depth} (Test AUC: {results['test_auc'][best_idx]:.4f})")
-        
-        logger.info(f"\n{'='*70}\n")
         return results
     
     def study_n_estimators(self, n_estimators_list: List[int] = None):
@@ -274,9 +231,6 @@ class ParameterStudy:
         Args:
             n_estimators_list: List of n_estimators values to test
         """
-        logger.info("="*70)
-        logger.info("PARAMETER STUDY: Number of Estimators")
-        logger.info("="*70)
         
         if n_estimators_list is None:
             n_estimators_list = [10, 25, 50, 75, 100, 150, 200, 300]
@@ -286,7 +240,6 @@ class ParameterStudy:
         import time
         
         for n_est in n_estimators_list:
-            logger.info(f"\nTesting n_estimators = {n_est}")
             
             model = RandomForestClassifier(
                 n_estimators=n_est,
@@ -316,16 +269,13 @@ class ParameterStudy:
             results['f1'].append(f1)
             results['train_time'].append(train_time)
             
-            logger.info(f"  Test AUC: {test_auc:.4f}, F1: {f1:.4f}, Time: {train_time:.2f}s")
         
         self.results['n_estimators'] = results
         
         # Find optimal
         best_idx = np.argmax(results['test_auc'])
         best_n = results['n_estimators'][best_idx]
-        logger.info(f"\n[OK] Optimal n_estimators: {best_n} (Test AUC: {results['test_auc'][best_idx]:.4f})")
         
-        logger.info(f"\n{'='*70}\n")
         return results
     
     def study_learning_rate(self, learning_rates: List[float] = None):
@@ -335,12 +285,8 @@ class ParameterStudy:
         Args:
             learning_rates: List of learning rate values to test
         """
-        logger.info("="*70)
-        logger.info("PARAMETER STUDY: Learning Rate (Gradient Boosting)")
-        logger.info("="*70)
         
         if not XGBOOST_AVAILABLE:
-            logger.warning("XGBoost not available, skipping learning rate study")
             return None
         
         if learning_rates is None:
@@ -351,7 +297,6 @@ class ParameterStudy:
         scale_pos_weight = len(self.y_train[self.y_train == 0]) / max(len(self.y_train[self.y_train == 1]), 1)
         
         for lr in learning_rates:
-            logger.info(f"\nTesting learning_rate = {lr}")
             
             model = xgb.XGBClassifier(
                 learning_rate=lr,
@@ -379,16 +324,13 @@ class ParameterStudy:
             results['test_auc'].append(test_auc)
             results['f1'].append(f1)
             
-            logger.info(f"  Train AUC: {train_auc:.4f}, Test AUC: {test_auc:.4f}, F1: {f1:.4f}")
         
         self.results['learning_rate'] = results
         
         # Find optimal
         best_idx = np.argmax(results['test_auc'])
         best_lr = results['learning_rate'][best_idx]
-        logger.info(f"\n[OK] Optimal learning_rate: {best_lr} (Test AUC: {results['test_auc'][best_idx]:.4f})")
         
-        logger.info(f"\n{'='*70}\n")
         return results
     
     def study_min_samples_split(self, min_samples_list: List[int] = None):
@@ -398,9 +340,6 @@ class ParameterStudy:
         Args:
             min_samples_list: List of min_samples_split values to test
         """
-        logger.info("="*70)
-        logger.info("PARAMETER STUDY: Min Samples Split")
-        logger.info("="*70)
         
         if min_samples_list is None:
             min_samples_list = [2, 5, 10, 20, 50, 100, 200]
@@ -408,7 +347,6 @@ class ParameterStudy:
         results = {'min_samples': [], 'train_auc': [], 'test_auc': [], 'f1': []}
         
         for min_samples in min_samples_list:
-            logger.info(f"\nTesting min_samples_split = {min_samples}")
             
             model = RandomForestClassifier(
                 n_estimators=100,
@@ -435,16 +373,13 @@ class ParameterStudy:
             results['test_auc'].append(test_auc)
             results['f1'].append(f1)
             
-            logger.info(f"  Train AUC: {train_auc:.4f}, Test AUC: {test_auc:.4f}, F1: {f1:.4f}")
         
         self.results['min_samples_split'] = results
         
         # Find optimal
         best_idx = np.argmax(results['test_auc'])
         best_min = results['min_samples'][best_idx]
-        logger.info(f"\n[OK] Optimal min_samples_split: {best_min} (Test AUC: {results['test_auc'][best_idx]:.4f})")
         
-        logger.info(f"\n{'='*70}\n")
         return results
     
     def study_regularization(self, c_values: List[float] = None):
@@ -454,9 +389,6 @@ class ParameterStudy:
         Args:
             c_values: List of regularization strength values to test
         """
-        logger.info("="*70)
-        logger.info("PARAMETER STUDY: Regularization Strength (Logistic Regression)")
-        logger.info("="*70)
         
         if c_values is None:
             c_values = [0.001, 0.01, 0.1, 0.5, 1.0, 5.0, 10.0, 100.0]
@@ -464,7 +396,6 @@ class ParameterStudy:
         results = {'C': [], 'train_auc': [], 'test_auc': [], 'f1': []}
         
         for c in c_values:
-            logger.info(f"\nTesting C = {c}")
             
             model = LogisticRegression(
                 C=c,
@@ -490,23 +421,17 @@ class ParameterStudy:
             results['test_auc'].append(test_auc)
             results['f1'].append(f1)
             
-            logger.info(f"  Train AUC: {train_auc:.4f}, Test AUC: {test_auc:.4f}, F1: {f1:.4f}")
         
         self.results['regularization'] = results
         
         # Find optimal
         best_idx = np.argmax(results['test_auc'])
         best_c = results['C'][best_idx]
-        logger.info(f"\n[OK] Optimal C: {best_c} (Test AUC: {results['test_auc'][best_idx]:.4f})")
         
-        logger.info(f"\n{'='*70}\n")
         return results
     
     def generate_visualizations(self):
         """Generate parameter sensitivity visualizations."""
-        logger.info("="*70)
-        logger.info("GENERATING VISUALIZATIONS")
-        logger.info("="*70)
         
         # Create a comprehensive figure with all parameter studies
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -627,12 +552,10 @@ class ParameterStudy:
         plt.savefig(self.plots_path / 'parameter_sensitivity.png', dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"[OK] Saved: parameter_sensitivity.png")
         
         # Create individual plots for each parameter
         self._create_individual_plots()
         
-        logger.info(f"\n{'='*70}\n")
     
     def _create_individual_plots(self):
         """Create individual parameter sensitivity plots."""
@@ -660,30 +583,18 @@ class ParameterStudy:
             plt.savefig(self.plots_path / 'overfitting_analysis.png', dpi=300, bbox_inches='tight')
             plt.close()
             
-            logger.info(f"[OK] Saved: overfitting_analysis.png")
     
     def generate_report(self):
         """Generate comprehensive parameter study report."""
-        logger.info("="*70)
-        logger.info("GENERATING REPORT")
-        logger.info("="*70)
         
         report_path = self.output_path / "parameter_study_report.md"
         
         report_lines = []
         report_lines.append("# Parameter Study Report")
-        report_lines.append("")
-        report_lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report_lines.append("")
+        
         report_lines.append("---")
         report_lines.append("")
         
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        report_lines.append("This report presents systematic parameter sensitivity analysis for the ")
-        report_lines.append("business success prediction model. We study how model performance varies ")
-        report_lines.append("with different hyperparameter settings to identify optimal configurations.")
-        report_lines.append("")
         
         # Tree Depth
         report_lines.append("## 1. Tree Depth Analysis")
@@ -877,22 +788,15 @@ class ParameterStudy:
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"[OK] Saved report: {report_path}")
         
         # Save results JSON
         results_file = self.output_path / "parameter_study_results.json"
         with open(results_file, 'w') as f:
             json.dump(self.results, f, indent=2)
         
-        logger.info(f"[OK] Saved results: {results_file}")
-        logger.info(f"\n{'='*70}\n")
     
     def run_pipeline(self):
         """Execute complete parameter study pipeline."""
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - PARAMETER STUDY")
-        logger.info("="*70)
-        logger.info("")
         
         # Step 1: Load data
         self.load_and_prepare_data()
@@ -910,11 +814,6 @@ class ParameterStudy:
         # Step 4: Generate report
         self.generate_report()
         
-        logger.info("\n" + "="*70)
-        logger.info("PARAMETER STUDY COMPLETE!")
-        logger.info("="*70)
-        logger.info(f"\nOutputs saved to: {self.output_path}")
-        logger.info("")
 
 
 def main():

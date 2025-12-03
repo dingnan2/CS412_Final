@@ -26,9 +26,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from typing import Dict, Tuple, Optional, List
-import logging
 
-logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -65,16 +63,10 @@ def create_prediction_tasks_v2(
     Returns:
         DataFrame with prediction tasks
     """
-    logger.info("="*70)
-    logger.info("CREATING PREDICTION TASKS (V2 - Leakage-Free)")
-    logger.info("="*70)
-    logger.info(f"Cutoff dates: {len(cutoff_dates)}")
-    logger.info(f"Min reviews before cutoff: {min_reviews_before_cutoff}")
     
     tasks = []
     
     for cutoff_date in cutoff_dates:
-        logger.info(f"\nProcessing cutoff: {cutoff_date.strftime('%Y-%m-%d')}")
         
         # Filter reviews before cutoff
         reviews_before = reviews_df[reviews_df['date'] < cutoff_date]
@@ -107,7 +99,6 @@ def create_prediction_tasks_v2(
         ).dt.days
         qualified = qualified[qualified['days_to_cutoff'] <= max_gap_days]
         
-        logger.info(f"  Qualified businesses: {len(qualified)}")
         
         # Create tasks
         for _, row in qualified.iterrows():
@@ -136,22 +127,12 @@ def create_prediction_tasks_v2(
     tasks_df = pd.DataFrame(tasks)
     
     # Log statistics
-    logger.info(f"\n{'='*70}")
-    logger.info("TASK CREATION SUMMARY")
-    logger.info(f"{'='*70}")
-    logger.info(f"Total tasks: {len(tasks_df)}")
-    logger.info(f"Unique businesses: {tasks_df['business_id'].nunique()}")
     
     if len(tasks_df) > 0:
         label_counts = tasks_df['label'].value_counts()
-        logger.info(f"Label distribution:")
-        logger.info(f"  Open (1): {label_counts.get(1, 0)} ({label_counts.get(1, 0)/len(tasks_df)*100:.1f}%)")
-        logger.info(f"  Closed (0): {label_counts.get(0, 0)} ({label_counts.get(0, 0)/len(tasks_df)*100:.1f}%)")
         
-        logger.info(f"\nTasks per year:")
         for year in sorted(tasks_df['prediction_year'].unique()):
             count = (tasks_df['prediction_year'] == year).sum()
-            logger.info(f"  {year}: {count}")
     
     return tasks_df
 

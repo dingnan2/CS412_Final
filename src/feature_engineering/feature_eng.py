@@ -19,7 +19,6 @@ This module implements the feature engineering pipeline with:
 
 import pandas as pd
 import numpy as np
-import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List
 import json
@@ -40,17 +39,6 @@ try:
 except ImportError:
     VADER_AVAILABLE = False
     print("WARNING: VADER not available. Install 'vaderSentiment' for sentiment features.")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/feature_engineering.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 
 class FeatureEngineer:
@@ -111,14 +99,10 @@ class FeatureEngineer:
             else:
                 # Default: single cutoff at 2020-12-31
                 self.cutoff_dates = [pd.Timestamp('2020-12-31')]
-                logger.warning("No cutoff_dates or prediction_years provided, using default: 2020-12-31")
             
-            logger.info(f"Temporal validation enabled with {len(self.cutoff_dates)} cutoff dates")
-            logger.info(f"  Cutoffs: {[d.date() for d in self.cutoff_dates]}")
         else:
             # No temporal validation - use dataset end date as reference
             self.cutoff_dates = [pd.Timestamp('2022-01-19')]
-            logger.info("Temporal validation disabled - using full dataset (reference: 2022-01-19)")
         
         # Data containers
         self.business_df = None
@@ -135,40 +119,28 @@ class FeatureEngineer:
     
     def load_data(self):
         """Load cleaned business and user data"""
-        logger.info("="*70)
-        logger.info("LOADING CLEANED DATA")
-        logger.info("="*70)
         
         # Load business data
         business_path = self.processed_path / "business_clean.csv"
         self.business_df = pd.read_csv(business_path)
-        logger.info(f"Loaded business data: {self.business_df.shape}")
         
         # Load user data (for credibility weights)
         user_path = self.processed_path / "user_clean.csv"
-        logger.info("Loading user data in chunks...")
         chunks = []
         for chunk in pd.read_csv(user_path, chunksize=100000):
             chunks.append(chunk)
         self.user_df = pd.concat(chunks, ignore_index=True)
-        logger.info(f"Loaded user data: {self.user_df.shape}")
         
         # OPTIMIZATION: Load pre-computed sentiment scores from Phase 2 (EDA)
         sentiment_path = self.processed_path / "review_sentiment.csv"
         if sentiment_path.exists():
-            logger.info("Loading pre-computed sentiment scores from Phase 2...")
             self.sentiment_df = pd.read_csv(sentiment_path)
-            logger.info(f"[OK] Loaded pre-computed sentiment: {self.sentiment_df.shape}")
-            logger.info(f"  (Skipping VADER computation in feature engineering)")
             self.use_precomputed_sentiment = True
         else:
-            logger.warning("Pre-computed sentiment not found at: {sentiment_path}")
-            logger.warning("Will compute sentiment on-the-fly (slower)")
             self.sentiment_df = None
             self.use_precomputed_sentiment = False
         
         # Note: Reviews will be loaded in chunks during feature computation
-        logger.info("Review data will be loaded in chunks during processing")
 
     def create_static_features(self) -> pd.DataFrame:
         """
@@ -184,9 +156,6 @@ class FeatureEngineer:
         7. category_count (number of categories)
         8. price_range (if available in attributes)
         """
-        logger.info("="*70)
-        logger.info("CREATING STATIC BUSINESS FEATURES")
-        logger.info("="*70)
         
         df = self.business_df.copy()
         features = pd.DataFrame()
@@ -196,7 +165,6 @@ class FeatureEngineer:
         # Feature 1-2: Basic business metrics
         features['stars'] = df['stars']
         features['review_count'] = df['review_count']
-        logger.info(f"[OK] Created basic metrics: stars, review_count")
         
         # Parse categories
         df['categories_list'] = df['categories'].fillna('').str.split(',')
@@ -229,7 +197,6 @@ class FeatureEngineer:
         features['category_encoded'] = df['primary_category_grouped'].map(
             category_stats['encoded']
         ).fillna(global_mean)
-        logger.info(f"[OK] Created category_encoded (top 20 + Other)")
         
         # Feature 4: State target encoding
         state_stats = df.groupby('state')['is_open'].agg(['mean', 'count'])
@@ -238,7 +205,6 @@ class FeatureEngineer:
             (state_stats['count'] + smoothing)
         )
         features['state_encoded'] = df['state'].map(state_stats['encoded']).fillna(global_mean)
-        logger.info(f"[OK] Created state_encoded")
         
         # Feature 5: City target encoding (top 50 cities)
         top_cities = df['city'].value_counts().head(50).index.tolist()
@@ -250,13 +216,11 @@ class FeatureEngineer:
             (city_stats['count'] + smoothing)
         )
         features['city_encoded'] = df['city_grouped'].map(city_stats['encoded']).fillna(global_mean)
-        logger.info(f"[OK] Created city_encoded (top 50 + Other)")
         
         # Feature 6-7: Category counts
         features['has_multiple_categories'] = df['categories_list'].apply(len) > 1
         features['has_multiple_categories'] = features['has_multiple_categories'].astype(int)
         features['category_count'] = df['categories_list'].apply(len)
-        logger.info(f"[OK] Created has_multiple_categories, category_count")
         
         # Feature 8: Price range (if available in attributes)
         # Try to extract from attributes JSON
@@ -277,15 +241,11 @@ class FeatureEngineer:
         # Fill missing with median
         median_price = features['price_range'].median()
         features['price_range'].fillna(median_price, inplace=True)
-        logger.info(f"[OK] Created price_range (extracted from attributes)")
         
-        logger.info(f"\nStatic features created: {features.shape[1] - 2} features")
-        logger.info(f"Feature names: {[c for c in features.columns if c not in ['business_id', 'is_open']]}")
         
         # Save separate category file
         static_file = self.category_path / "business_static_features.csv"
         features.to_csv(static_file, index=False)
-        logger.info(f"Saved: {static_file}")
         
         return features
     
@@ -302,7 +262,6 @@ class FeatureEngineer:
         Returns:
             Series with user_id as index, credibility as values
         """
-        logger.info("Calculating user credibility scores...")
         
         df = self.user_df.copy()
         
@@ -325,9 +284,6 @@ class FeatureEngineer:
             name='user_credibility'
         )
         
-        logger.info(f"[OK] Calculated credibility for {len(credibility_series):,} users")
-        logger.info(f"  Mean credibility: {credibility_series.mean():.4f}")
-        logger.info(f"  Median credibility: {credibility_series.median():.4f}")
         
         return credibility_series
     
@@ -724,12 +680,7 @@ class FeatureEngineer:
             - _prediction_year (if temporal validation)
             - all feature columns
         """
-        logger.info("="*70)
-        logger.info("CREATING REVIEW-BASED FEATURES (TWO-PHASE CHUNKED)")
-        logger.info("="*70)
         
-        if self.use_temporal_validation:
-            logger.info(f"Temporal validation mode: generating features for {len(self.cutoff_dates)} cutoff dates")
         
         review_path = self.processed_path / "review_clean.csv"
         
@@ -740,26 +691,18 @@ class FeatureEngineer:
         precomputed_sentiment = {}  # review_id -> sentiment score
         
         if self.use_precomputed_sentiment and self.sentiment_df is not None:
-            logger.info("[OK] Using PRE-COMPUTED sentiment from Phase 2 (FAST)")
-            logger.info(f"  Loaded {len(self.sentiment_df):,} pre-computed sentiment scores")
             # Create lookup dictionary for fast access
             precomputed_sentiment = dict(zip(
                 self.sentiment_df['review_id'], 
                 self.sentiment_df['sentiment']
             ))
-            logger.info("  Created sentiment lookup dictionary")
         elif VADER_AVAILABLE:
             sentiment_analyzer = SentimentIntensityAnalyzer()
-            logger.info("[WARN] Using VADER on-the-fly (slower - consider re-running Phase 2)")
-        else:
-            logger.warning("[FAIL] No sentiment available - features will be approximated from stars")
+        
         
         # ================================================================
         # PHASE 1: Collect all reviews per business
         # ================================================================
-        logger.info("\n" + "="*70)
-        logger.info("PHASE 1: Collecting reviews per business")
-        logger.info("="*70)
         
         # Dictionary to accumulate reviews per business
         # Key: business_id, Value: list of review dicts (only essential columns)
@@ -773,7 +716,6 @@ class FeatureEngineer:
         chunk_num = 0
         total_reviews = 0
         
-        logger.info(f"Reading reviews in chunks of {chunk_size:,}...")
         
         for chunk in pd.read_csv(review_path, chunksize=chunk_size):
             chunk_num += 1
@@ -800,9 +742,7 @@ class FeatureEngineer:
                 # Convert to list of dicts for memory efficiency
                 business_reviews_dict[business_id].extend(group.to_dict('records'))
             
-            logger.info(f"  [Chunk {chunk_num}] Processed {len(chunk):,} reviews, "
-                       f"Total businesses: {len(business_reviews_dict):,}")
-            
+                    
             # Memory cleanup
             del chunk
             gc.collect()
@@ -811,29 +751,21 @@ class FeatureEngineer:
         del precomputed_sentiment
         gc.collect()
         
-        logger.info(f"\nPhase 1 complete:")
-        logger.info(f"  Total reviews processed: {total_reviews:,}")
-        logger.info(f"  Total unique businesses: {len(business_reviews_dict):,}")
         
         # ================================================================
         # PHASE 2: Compute features using complete review data
         # ================================================================
-        logger.info("\n" + "="*70)
-        logger.info("PHASE 2: Computing features from complete reviews")
-        logger.info("="*70)
         
         # ================================================================
         # OPTIMIZATION: Pre-build user info lookup dictionary
         # This changes O(n) isin() lookups to O(1) dict lookups
         # ================================================================
-        logger.info("Building user info lookup dictionary...")
         user_info_dict = {}
         for _, row in self.user_df.iterrows():
             user_info_dict[row['user_id']] = {
                 'user_tenure_years': row.get('user_tenure_years', 0.0),
                 'review_count': row.get('review_count', 0)
             }
-        logger.info(f"  Created lookup for {len(user_info_dict):,} users")
         
         all_business_features = []
         processed_count = 0
@@ -845,12 +777,7 @@ class FeatureEngineer:
             # Convert list of dicts back to DataFrame
             business_reviews = pd.DataFrame(reviews_list)
             business_reviews['date'] = pd.to_datetime(business_reviews['date'])
-            
-            # Log progress every 10000 businesses
-            if processed_count % 10000 == 0:
-                logger.info(f"  Processed {processed_count:,}/{total_businesses:,} businesses "
-                           f"({processed_count/total_businesses*100:.1f}%)")
-            
+                       
             # If temporal validation, generate features for each cutoff date
             if self.use_temporal_validation:
                 for cutoff_date in self.cutoff_dates:
@@ -914,16 +841,7 @@ class FeatureEngineer:
         # Convert to DataFrame
         review_features_df = pd.DataFrame(all_business_features)
         
-        logger.info(f"\n{'='*70}")
-        logger.info(f"REVIEW FEATURES COMPLETE")
-        logger.info(f"{'='*70}")
-        logger.info(f"Total feature rows: {len(review_features_df):,}")
         
-        if not review_features_df.empty:
-            logger.info(f"Unique businesses: {review_features_df['business_id'].nunique():,}")
-            
-            if self.use_temporal_validation and review_features_df['business_id'].nunique() > 0:
-                logger.info(f"Average rows per business: {len(review_features_df) / review_features_df['business_id'].nunique():.1f}")
         
         return review_features_df  
     
@@ -938,9 +856,6 @@ class FeatureEngineer:
         4. category_competitiveness (# businesses in same category in city)
         5. location_density (# businesses in same city)
         """
-        logger.info("="*70)
-        logger.info("CREATING LOCATION/CATEGORY AGGREGATE FEATURES")
-        logger.info("="*70)
         
         df = self.business_df.copy()
         
@@ -986,12 +901,10 @@ class FeatureEngineer:
         city_counts = df['city'].value_counts()
         features['location_density'] = df['city'].map(city_counts)
         
-        logger.info(f"[OK] Created {features.shape[1] - 1} location/category features")
         
         # Save
         location_file = self.category_path / "location_category_features.csv"
         features.to_csv(location_file, index=False)
-        logger.info(f"Saved: {location_file}")
         
         return features
     
@@ -1010,22 +923,16 @@ class FeatureEngineer:
         Returns:
             Final merged DataFrame with all features and metadata
         """
-        logger.info("="*70)
-        logger.info("MERGING ALL FEATURES")
-        logger.info("="*70)
         
         # Start with review features (most comprehensive)
         final_df = review_features.copy()
         
-        logger.info(f"Starting with review features: {final_df.shape}")
         
         # Determine merge keys based on temporal validation mode
         if self.use_temporal_validation:
             merge_keys = ['business_id', '_cutoff_date']
-            logger.info("Temporal validation mode: merging on business_id + _cutoff_date")
         else:
             merge_keys = ['business_id']
-            logger.info("Standard mode: merging on business_id only")
         
         # Merge static features
         # Note: Static features are the same for all cutoff dates of same business
@@ -1034,7 +941,6 @@ class FeatureEngineer:
             on='business_id',
             how='left'
         )
-        logger.info(f"After merging static features: {final_df.shape}")
         
         # Merge location features
         # Note: Location features are also static across cutoff dates
@@ -1043,7 +949,6 @@ class FeatureEngineer:
             on='business_id',
             how='left'
         )
-        logger.info(f"After merging location features: {final_df.shape}")
         
         # Add additional temporal metadata
         if self.use_temporal_validation:
@@ -1053,7 +958,6 @@ class FeatureEngineer:
             
             # Add first and last review dates for label inference
             # These will be computed from review data
-            logger.info("Computing review date metadata...")
             
             review_path = self.processed_path / "review_clean.csv"
             
@@ -1098,20 +1002,12 @@ class FeatureEngineer:
                 final_df['_cutoff_date'] - final_df['_first_review_date']
             ).dt.days
             
-            logger.info("[OK] Added temporal metadata columns:")
-            logger.info("  - _prediction_year, _prediction_month")
-            logger.info("  - _first_review_date, _last_review_date")
-            logger.info("  - _business_age_at_cutoff_days")
         
         # Remove leaky features if in temporal validation mode
         if self.use_temporal_validation:
             features_to_remove = [f for f in self.leaky_features if f in final_df.columns]
             
             if features_to_remove:
-                logger.info(f"\nRemoving {len(features_to_remove)} leaky features:")
-                for feat in features_to_remove:
-                    logger.info(f"  - {feat}")
-                
                 final_df = final_df.drop(columns=features_to_remove)
         
         # Check for missing values
@@ -1119,9 +1015,6 @@ class FeatureEngineer:
         cols_with_missing = missing_counts[missing_counts > 0]
         
         if len(cols_with_missing) > 0:
-            logger.warning(f"\nColumns with missing values:")
-            for col, count in cols_with_missing.items():
-                logger.warning(f"  {col}: {count:,} ({count/len(final_df)*100:.1f}%)")
             
             # Fill missing values
             # Numeric columns: fill with median
@@ -1140,27 +1033,11 @@ class FeatureEngineer:
                     mode_val = final_df[col].mode()[0] if len(final_df[col].mode()) > 0 else 'Unknown'
                     final_df[col].fillna(mode_val, inplace=True)
             
-            logger.info("[OK] Filled missing values")
-        
-        # Final statistics
-        logger.info(f"\n{'='*70}")
-        logger.info(f"FEATURE MERGING COMPLETE")
-        logger.info(f"{'='*70}")
-        logger.info(f"Final shape: {final_df.shape}")
-        logger.info(f"  Rows: {len(final_df):,}")
-        logger.info(f"  Columns: {len(final_df.columns)}")
-        
-        if self.use_temporal_validation:
-            logger.info(f"  Unique businesses: {final_df['business_id'].nunique():,}")
-            logger.info(f"  Unique cutoff dates: {final_df['_cutoff_date'].nunique()}")
-            logger.info(f"  Avg rows per business: {len(final_df) / final_df['business_id'].nunique():.1f}")
         
         # Separate metadata and feature columns
         metadata_cols = [c for c in final_df.columns if c.startswith('_') or c == 'business_id']
         feature_cols = [c for c in final_df.columns if c not in metadata_cols]
         
-        logger.info(f"  Metadata columns: {len(metadata_cols)}")
-        logger.info(f"  Feature columns: {len(feature_cols)}")
         
         return final_df
     
@@ -1171,9 +1048,6 @@ class FeatureEngineer:
         Args:
             final_df: Final merged feature DataFrame
         """
-        logger.info("="*70)
-        logger.info("GENERATING FEATURE REPORT")
-        logger.info("="*70)
         
         report_lines = []
         report_lines.append("# Feature Engineering Report")
@@ -1197,14 +1071,6 @@ class FeatureEngineer:
         report_lines.append("---")
         report_lines.append("")
         
-        # Executive Summary
-        report_lines.append("## Executive Summary")
-        report_lines.append("")
-        report_lines.append(f"- **Total feature rows**: {len(final_df):,}")
-        report_lines.append(f"- **Unique businesses**: {final_df['business_id'].nunique():,}")
-        
-        if self.use_temporal_validation:
-            report_lines.append(f"- **Rows per business**: {len(final_df) / final_df['business_id'].nunique():.1f} (avg)")
         
         # Separate metadata and features
         # Metadata includes: temporal metadata (_*), business_id, and target variables (is_open, label, label_confidence, label_source)
@@ -1364,24 +1230,10 @@ class FeatureEngineer:
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(report_lines))
         
-        logger.info(f"[OK] Saved: {report_file}")
 
     def run_pipeline(self):
         """Execute complete feature engineering pipeline with temporal validation support"""
-        logger.info("="*70)
-        logger.info("CS 412 RESEARCH PROJECT - FEATURE ENGINEERING")
-        logger.info("Business Success Prediction using Yelp Dataset")
-        logger.info("="*70)
-        logger.info("")
-        logger.info("Pipeline: Feature Engineering")
         
-        if self.use_temporal_validation:
-            logger.info("Mode: TEMPORAL VALIDATION (preventing data leakage)")
-            logger.info(f"Cutoff dates: {len(self.cutoff_dates)}")
-        else:
-            logger.info("Mode: BASELINE (using full dataset)")
-        
-        logger.info("")
         
         # Step 1: Load data
         self.load_data()
@@ -1410,22 +1262,10 @@ class FeatureEngineer:
         
         final_df.to_csv(final_file, index=False)
         
-        logger.info(f"\n{'='*70}")
-        logger.info(f"[OK] Saved final feature dataset: {final_file}")
-        logger.info(f"  Shape: {final_df.shape}")
-        logger.info(f"{'='*70}")
         
         # Step 8: Generate report
         self.generate_feature_report(final_df)
         
-        logger.info("\n" + "="*70)
-        logger.info("FEATURE ENGINEERING COMPLETE!")
-        logger.info("="*70)
-        logger.info("\nOutput files:")
-        logger.info(f"  - {final_file}")
-        logger.info(f"  - data/features/feature_categories/ (6 separate files)")
-        logger.info(f"  - data/features/feature_engineering_report.md")
-        logger.info("")
         
         return final_df
 

@@ -12,9 +12,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from typing import Dict, List, Tuple, Optional
-import logging
 
-logger = logging.getLogger(__name__)
 
 
 def filter_reviews_by_cutoff(reviews_df: pd.DataFrame, 
@@ -49,9 +47,6 @@ def filter_reviews_by_cutoff(reviews_df: pd.DataFrame,
     
     # Filter by cutoff
     filtered_df = reviews_df[reviews_df[date_col] <= cutoff_date].copy()
-    
-    logger.debug(f"Filtered reviews: {len(reviews_df)} -> {len(filtered_df)} "
-                f"(cutoff: {cutoff_date.date()})")
     
     return filtered_df
 
@@ -206,9 +201,6 @@ def create_prediction_tasks(business_df: pd.DataFrame,
         # - Business B, cutoff=2018-12-31, target=2019-12-31
         # etc.
     """
-    logger.info(f"Creating prediction tasks for years: {prediction_years}")
-    logger.info(f"Prediction window: {prediction_window_months} months")
-    logger.info(f"Tasks per business: {tasks_per_business}")
     
     tasks = []
     
@@ -280,18 +272,11 @@ def create_prediction_tasks(business_df: pd.DataFrame,
     tasks_df = pd.DataFrame(tasks)
     
     # Log statistics
-    logger.info(f"\nPrediction tasks created:")
-    logger.info(f"  Total tasks: {len(tasks_df):,}")
-    logger.info(f"  Valid tasks: {tasks_df['is_valid'].sum():,}")
-    logger.info(f"  Invalid tasks: {(~tasks_df['is_valid']).sum():,}")
-    logger.info(f"  Unique businesses: {tasks_df['business_id'].nunique():,}")
     
     if len(tasks_df) > 0:
-        logger.info(f"\nTasks per year:")
         for year in sorted(tasks_df['prediction_year'].unique()):
             year_count = (tasks_df['prediction_year'] == year).sum()
             year_valid = tasks_df[tasks_df['prediction_year'] == year]['is_valid'].sum()
-            logger.info(f"  {year}: {year_count:,} total, {year_valid:,} valid")
     
     return tasks_df
 
@@ -317,7 +302,6 @@ def filter_tasks_by_date_range(tasks_df: pd.DataFrame,
     if max_date is None:
         max_date = reviews_df['date'].max()
     
-    logger.info(f"Filtering tasks by date range: {min_date.date()} to {max_date.date()}")
     
     # Filter tasks where cutoff and target are within data range
     valid_tasks = tasks_df[
@@ -325,6 +309,5 @@ def filter_tasks_by_date_range(tasks_df: pd.DataFrame,
         (tasks_df['target_date'] <= max_date)
     ].copy()
     
-    logger.info(f"Tasks after date filtering: {len(tasks_df)} -> {len(valid_tasks)}")
     
     return valid_tasks

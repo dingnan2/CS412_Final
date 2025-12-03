@@ -30,9 +30,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Tuple, Dict, Iterator
 from dataclasses import dataclass
-import logging
 
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -75,7 +73,6 @@ def expanding_window_split(
     if len(years) < min_train_years + 1:
         raise ValueError(f"Need at least {min_train_years + 1} years, got {len(years)}")
     
-    logger.info(f"Expanding Window Split: years {years[0]}-{years[-1]}")
     
     for i in range(min_train_years, len(years)):
         train_years = years[:i]
@@ -95,7 +92,6 @@ def expanding_window_split(
             test_indices=test_indices
         )
         
-        logger.info(f"  {split.name}: train {len(train_indices)}, test {len(test_indices)}")
         
         yield split
 
@@ -129,7 +125,6 @@ def sliding_window_split(
             f"Need at least {train_window_years + 1} years, got {len(years)}"
         )
     
-    logger.info(f"Sliding Window Split: {train_window_years}-year window")
     
     for i in range(train_window_years, len(years)):
         train_years = years[i - train_window_years:i]
@@ -149,7 +144,6 @@ def sliding_window_split(
             test_indices=test_indices
         )
         
-        logger.info(f"  {split.name}: train {len(train_indices)}, test {len(test_indices)}")
         
         yield split
 
@@ -201,9 +195,6 @@ def single_holdout_split(
         test_indices=test_indices
     )
     
-    logger.info(f"Single Holdout Split:")
-    logger.info(f"  Train years: {train_year_list} ({len(train_indices)} samples)")
-    logger.info(f"  Test years: {test_year_list} ({len(test_indices)} samples)")
     
     return split
 
@@ -242,7 +233,6 @@ def temporal_stratified_cv(
     n_years = len(years)
     min_train = max(2, n_years // n_splits)
     
-    logger.info(f"Temporal Stratified CV: {n_splits} folds")
     
     fold = 0
     for i in range(min_train, n_years):
